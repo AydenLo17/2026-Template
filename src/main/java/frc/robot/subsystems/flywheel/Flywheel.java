@@ -85,6 +85,20 @@ public class Flywheel extends AdvancedMechanism {
     return motor.getVelocity().getValue().isNear(velocityOut.getVelocityMeasure(), tolerance);
   }
 
+  // Direct actuators for the in-package classic-style command ({@link FlywheelCommand}). Kept
+  // package-private so the public API stays commands-only - everything outside this package still
+  // goes through spinUp()/spinUpAndWait()/stop() and the scheduler's mechanism ownership.
+
+  /** Command the flywheel toward shooting speed (no command wrapper). */
+  void spinUpDirect() {
+    setVelocity(SHOOTING_SPEED_RPS);
+  }
+
+  /** Stop the flywheel (no command wrapper). */
+  void stopDirect() {
+    motor.stopMotor();
+  }
+
   private void setVelocity(double rps) {
     motor.setControl(velocityOut.withVelocity(RotationsPerSecond.of(rps)));
   }

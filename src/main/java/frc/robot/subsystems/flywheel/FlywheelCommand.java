@@ -7,16 +7,17 @@ package frc.robot.subsystems.flywheel;
 import frc.robot.utils.ClassicCommand;
 
 /**
- * FlywheelCommand - the {@link Flywheel#spinUp()} factory written in the classic
+ * FlywheelCommand - the {@link Flywheel#spinUpAndWait()} factory written in the classic
  * {@code initialize} / {@code execute} / {@code isFinished} / {@code end} style instead of a
  * one-line command factory.
  *
  * <p>Spins the flywheel up to shooting speed and finishes once it is holding that speed within
  * tolerance. If something interrupts it before it gets there, the flywheel is stopped; on a
- * natural finish it is left spinning (ready to shoot), matching {@link Flywheel#spinUp()}.
+ * natural finish it is left spinning (ready to shoot), matching {@link Flywheel#spinUpAndWait()}.
  *
- * <p>This is the verbose counterpart to {@link Flywheel#spinUp()} - reach for {@link ClassicCommand}
- * when you want explicit, stateful steps, and for the one-line factory when that is all you need.
+ * <p>This is the verbose counterpart to {@link Flywheel#spinUpAndWait()} - reach for {@link
+ * ClassicCommand} when you want explicit, stateful steps, and for the one-line factory when that is
+ * all you need.
  */
 public class FlywheelCommand extends ClassicCommand {
   private final Flywheel flywheel;
