@@ -4,10 +4,8 @@
 
 package frc.robot;
 
-import com.ctre.phoenix6.HootAutoReplay;
-
-import org.wpilib.command2.Command;
-import org.wpilib.command2.CommandScheduler;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Scheduler;
 import org.wpilib.framework.TimedRobot;
 
 public class Robot extends TimedRobot {
@@ -15,36 +13,24 @@ public class Robot extends TimedRobot {
 
     private final RobotContainer robotContainer;
 
-    /* log and replay timestamp and joystick data */
-    private final HootAutoReplay timeAndJoystickReplay = new HootAutoReplay()
-        .withTimestampReplay()
-        .withJoystickReplay();
-
     public Robot() {
         robotContainer = new RobotContainer();
     }
 
     @Override
     public void robotPeriodic() {
-        timeAndJoystickReplay.update();
-        CommandScheduler.getInstance().run();
+        Scheduler.getDefault().run();
     }
 
     @Override
-    public void disabledInit() {}
-
-    @Override
     public void disabledPeriodic() {}
-
-    @Override
-    public void disabledExit() {}
 
     @Override
     public void autonomousInit() {
         autonomousCommand = robotContainer.getAutonomousCommand();
 
         if (autonomousCommand != null) {
-            CommandScheduler.getInstance().schedule(autonomousCommand);
+            Scheduler.getDefault().schedule(autonomousCommand);
         }
     }
 
@@ -52,31 +38,27 @@ public class Robot extends TimedRobot {
     public void autonomousPeriodic() {}
 
     @Override
-    public void autonomousExit() {}
-
-    @Override
     public void teleopInit() {
         if (autonomousCommand != null) {
-            CommandScheduler.getInstance().cancel(autonomousCommand);
+            Scheduler.getDefault().cancel(autonomousCommand);
         }
     }
 
     @Override
     public void teleopPeriodic() {}
 
-    @Override
-    public void teleopExit() {}
-
+    /**
+     * Utility mode is a 2027/Systemcore-only state for safely interacting with the robot off-field
+     * (e.g. configuring devices, manually pushing it around). Cancel any leftover commands so nothing
+     * fights you.
+     */
     @Override
     public void utilityInit() {
-        CommandScheduler.getInstance().cancelAll();
+        Scheduler.getDefault().cancelAll();
     }
 
     @Override
     public void utilityPeriodic() {}
-
-    @Override
-    public void utilityExit() {}
 
     @Override
     public void simulationPeriodic() {}

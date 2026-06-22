@@ -14,12 +14,11 @@ import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 
-import org.wpilib.command2.Command;
-import org.wpilib.command2.SubsystemBase;
+import org.wpilib.command3.Command;
 import org.wpilib.units.measure.Angle;
 
-import frc.robot.constants.ArmConstants;
 import frc.robot.generated.TunerConstants;
+import frc.robot.utils.AdvancedMechanism;
 import frc.robot.utils.TalonFXUtil;
 
 /**
@@ -29,9 +28,33 @@ import frc.robot.utils.TalonFXUtil;
  * exposes <b>commands</b> (each returns a {@link Command}). Anything that wants to move the arm
  * does it through a command, which is how the scheduler prevents two things fighting over the motor.
  */
-public class Arm extends SubsystemBase {
-  // Shares the same CAN bus as the drivetrain (defined once in the Tuner X output).
-  private final TalonFX leader = new TalonFX(31, TunerConstants.kCANBus);
+public class Arm extends AdvancedMechanism {
+  // Position setpoints (rotations, 1.0 = full turn).
+  private static final double VERTICAL_POSITION = 0.25;       // 90°  - stowed / safe transport
+  private static final double HORIZONTAL_POSITION = 0.5;      // 180° - ground intake
+  private static final double SCORING_POSITION = 0.083;       // ~30° - scoring
+  private static final double SCORING_HIGH_POSITION = 0.125;  // 45°  - high scoring
+
+  // How close counts as "at target".
+  private static final double POSITION_TOLERANCE_DEGREES = 1.0;
+
+  // PID + feedforward gains.
+  // TODO: CRITICAL - tune on the real robot before driving the arm under power.
+  // Safe starting values: kG=0.2 (fights gravity), kS=0.2 (overcomes friction),
+  //                       kP=160 (correction strength), kD=30 (smoothness).
+  // If the arm jerks or moves too fast, make these smaller.
+  private static final double kG = 0.0; // NEEDS TUNING - gravity feedforward
+  private static final double kS = 0.0; // NEEDS TUNING - static friction feedforward
+  private static final double kP = 0.0; // NEEDS TUNING - proportional gain
+  private static final double kD = 0.0; // NEEDS TUNING - derivative gain
+
+  // Motion Magic speed limits.
+  // TODO: CRITICAL - set how fast the arm can move.
+  // Recommended start: cruise=2 rot/s, accel=4 rot/s².
+  private static final double MOTION_MAGIC_CRUISE_VELOCITY = 0.0; // NEEDS SETTING
+  private static final double MOTION_MAGIC_ACCELERATION = 0.0;    // NEEDS SETTING
+
+  private final TalonFX motor = new TalonFX(31, TunerConstants.kCANBus);
   private final CANcoder encoder = new CANcoder(32, TunerConstants.kCANBus);
 
   private final TalonFXConfiguration config = new TalonFXConfiguration();
@@ -39,55 +62,44 @@ public class Arm extends SubsystemBase {
   // Drives the arm to a target angle with a smooth Motion Magic profile.
   private final MotionMagicVoltage positionOut = new MotionMagicVoltage(0);
 
-  // How close counts as "at target".
-  private final Angle tolerance = Degrees.of(ArmConstants.POSITION_TOLERANCE_DEGREES);
+  private final Angle tolerance = Degrees.of(POSITION_TOLERANCE_DEGREES);
 
   public Arm() {
     config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
     config.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;
     config.Slot0.GravityType = GravityTypeValue.Arm_Cosine; // fights gravity automatically
 
-    // Control gains (TODO: CRITICAL - tune on the real robot).
-    config.Slot0.kG = ArmConstants.kG;
-    config.Slot0.kS = ArmConstants.kS;
-    config.Slot0.kP = ArmConstants.kP;
-    config.Slot0.kD = ArmConstants.kD;
+    config.Slot0.kG = kG;
+    config.Slot0.kS = kS;
+    config.Slot0.kP = kP;
+    config.Slot0.kD = kD;
 
-    config.MotionMagic.MotionMagicCruiseVelocity = ArmConstants.MOTION_MAGIC_CRUISE_VELOCITY;
-    config.MotionMagic.MotionMagicAcceleration = ArmConstants.MOTION_MAGIC_ACCELERATION;
+    config.MotionMagic.MotionMagicCruiseVelocity = MOTION_MAGIC_CRUISE_VELOCITY;
+    config.MotionMagic.MotionMagicAcceleration = MOTION_MAGIC_ACCELERATION;
     config.Feedback.withRemoteCANcoder(encoder);
 
-    TalonFXUtil.applyConfigWithRetries(leader, config);
+    TalonFXUtil.applyConfigWithRetries(motor, config);
   }
-
-  @Override
-  public void periodic() {
-    // No periodic work needed - control is entirely feedforward/feedback on the motor controller.
-  }
-
-  // ==================== Commands ====================
 
   /** Move to the vertical (stowed) position. */
   public Command vertical() {
-    return runOnce(() -> setPosition(ArmConstants.VERTICAL_POSITION_ROTATIONS));
+    return runOnce("vertical", () -> setPosition(VERTICAL_POSITION));
   }
 
   /** Move to the horizontal (ground intake) position. */
   public Command horizontal() {
-    return runOnce(() -> setPosition(ArmConstants.HORIZONTAL_POSITION_ROTATIONS));
+    return runOnce("horizontal", () -> setPosition(HORIZONTAL_POSITION));
   }
 
   /** Move to the scoring position. */
   public Command scoring() {
-    return runOnce(() -> setPosition(ArmConstants.SCORING_POSITION_ROTATIONS));
+    return runOnce("scoring", () -> setPosition(SCORING_POSITION));
   }
 
   /** Move to the high scoring position (far shots). */
   public Command scoringHigh() {
-    return runOnce(() -> setPosition(ArmConstants.SCORING_HIGH_POSITION_ROTATIONS));
+    return runOnce("scoringHigh", () -> setPosition(SCORING_HIGH_POSITION));
   }
-
-  // ==================== Queries ====================
 
   /** True when the arm has reached its target angle. */
   public boolean isAtTarget() {
@@ -104,8 +116,7 @@ public class Arm extends SubsystemBase {
     return positionOut.getPositionMeasure();
   }
 
-  // private: callers move the arm through commands, not direct setters.
   private void setPosition(double rotations) {
-    leader.setControl(positionOut.withPosition(rotations));
+    motor.setControl(positionOut.withPosition(rotations));
   }
 }

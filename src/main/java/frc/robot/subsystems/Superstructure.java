@@ -4,19 +4,18 @@
 
 package frc.robot.subsystems;
 
-import org.wpilib.command2.Command;
-import org.wpilib.command2.Commands;
+import org.wpilib.command3.Command;
 
 import frc.robot.subsystems.arm.Arm;
 import frc.robot.subsystems.flywheel.Flywheel;
 
 /**
- * Superstructure - coordinates the Arm and Flywheel together so the driver gets one button per
+ * Superstructure - coordinates the Arm and Flywheel so the driver gets one button per
  * robot "pose" instead of juggling both mechanisms by hand.
  *
- * <p>This is a plain coordinator (not a subsystem): each method returns a command built from the
- * arm and flywheel commands, so the composed command automatically <i>requires</i> both the arm and
- * the flywheel. {@code Commands.parallel(...)} runs them at the same time.
+ * <p>Each method returns a command composed of arm and flywheel commands. Because commands
+ * inherit their children's requirements, the result requires both subsystems, and
+ * {@code Command.parallel(...)} runs them at the same time.
  */
 public class Superstructure {
   private final Arm arm;
@@ -29,16 +28,16 @@ public class Superstructure {
 
   /** Stow for travel: arm vertical, flywheel stopped. */
   public Command stow() {
-    return Commands.parallel(arm.vertical(), flywheel.stop()).withName("Stow");
+    return Command.parallel(arm.vertical(), flywheel.stop()).named("Stow");
   }
 
   /** Ground intake: arm down, flywheel stopped. */
   public Command intake() {
-    return Commands.parallel(arm.horizontal(), flywheel.stop()).withName("Intake");
+    return Command.parallel(arm.horizontal(), flywheel.stop()).named("Intake");
   }
 
   /** Prepare to score: arm up, flywheel spinning. */
   public Command score() {
-    return Commands.parallel(arm.scoring(), flywheel.spinUp()).withName("Score");
+    return Command.parallel(arm.scoring(), flywheel.spinUp()).named("Score");
   }
 }

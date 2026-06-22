@@ -7,8 +7,9 @@ import com.ctre.phoenix6.hardware.TalonFX;
 /**
  * Utility class for common TalonFX motor operations.
  *
- * <p>Provides helper methods for motor configuration, follower setup, and other common patterns
- * used across subsystems.
+ * <p>Phoenix 6's {@code Configurator.apply(...)} runs once and returns a status code — it does NOT
+ * retry on its own. {@link #applyConfigWithRetries} retries up to 5 times, which catches transient
+ * CAN faults at robot boot.
  */
 public final class TalonFXUtil {
 
@@ -44,16 +45,5 @@ public final class TalonFXUtil {
    */
   public static boolean applyConfigWithRetries(TalonFX motor, TalonFXConfiguration config) {
     return applyConfigWithRetries(motor, config, 5);
-  }
-
-  /**
-   * Stops multiple motors at once.
-   *
-   * @param motors The motors to stop
-   */
-  public static void stopMotors(TalonFX... motors) {
-    for (TalonFX motor : motors) {
-      motor.stopMotor();
-    }
   }
 }
