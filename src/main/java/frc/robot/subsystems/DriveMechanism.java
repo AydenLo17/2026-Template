@@ -37,4 +37,13 @@ public class DriveMechanism extends AdvancedMechanism {
   public Command seedFieldCentric() {
     return runOnce("seedFieldCentric", drivetrain::seedFieldCentric);
   }
+
+  /**
+   * Applies a swerve control request to the underlying drivetrain. Exposed so a command that
+   * already requires this mechanism (e.g. {@code DriveToTag}) can drive it without needing direct
+   * access to the Phoenix swerve object.
+   */
+  public void setControl(SwerveRequest request) {
+    drivetrain.setControl(request);
+  }
 }

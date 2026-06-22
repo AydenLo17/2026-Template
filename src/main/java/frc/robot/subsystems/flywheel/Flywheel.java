@@ -58,9 +58,21 @@ public class Flywheel extends AdvancedMechanism {
     TalonFXUtil.applyConfigWithRetries(motor, config);
   }
 
-  /** Spin up to shooting speed. */
+  /** Fire-and-forget: command the flywheel toward shooting speed and finish immediately. */
   public Command spinUp() {
     return runOnce("spinUp", () -> setVelocity(SHOOTING_SPEED_RPS));
+  }
+
+  /**
+   * Command the flywheel toward shooting speed and hold the mechanism until it is at speed. If
+   * interrupted before reaching speed the motor is stopped; on a natural finish it is left
+   * spinning, ready to shoot.
+   */
+  public Command spinUpAndWait() {
+    return runRepeatedly(() -> setVelocity(SHOOTING_SPEED_RPS))
+        .until(this::isAtTarget)
+        .whenCanceled(motor::stopMotor)
+        .named("spinUpAndWait");
   }
 
   /** Stop the flywheel. */
@@ -71,17 +83,6 @@ public class Flywheel extends AdvancedMechanism {
   /** True when the flywheel is within tolerance of its target speed. */
   public boolean isAtTarget() {
     return motor.getVelocity().getValue().isNear(velocityOut.getVelocityMeasure(), tolerance);
-  }
-
-  // Direct (non-command) control for in-package classic commands like FlywheelCommand.
-  // The public API stays command-based; these let a ClassicCommand drive the motor straight
-  // from its initialize/end hooks while the scheduler still enforces ownership via requirements.
-  void spinUpDirect() {
-    setVelocity(SHOOTING_SPEED_RPS);
-  }
-
-  void stopDirect() {
-    motor.stopMotor();
   }
 
   private void setVelocity(double rps) {

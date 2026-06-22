@@ -15,6 +15,7 @@ import org.wpilib.command3.button.RobotModeTriggers;
 import org.wpilib.smartdashboard.SendableChooser;
 import org.wpilib.smartdashboard.SmartDashboard;
 
+import frc.robot.commands.DriveToTag;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.DriveMechanism;
 import frc.robot.subsystems.Superstructure;
@@ -72,6 +73,35 @@ public class RobotContainer {
         driver.leftTrigger().onTrue(superstructure.intake());   // pick up game piece
         driver.rightBumper().onTrue(superstructure.score());    // prepare to score
         driver.rightTrigger().onTrue(superstructure.stow());    // back to safe travel pose
+
+        // Hold A: vision-only auto-align to the tag standoff. whileTrue, so releasing the button
+        // hands control back to the joystick.
+        driver.a().whileTrue(new DriveToTag(drivetrain));
+
+        // Hold Y: the full auto-score sequence (lock tag, then align + spin up + raise arm together).
+        driver.y().whileTrue(autoScore());
+    }
+
+    /**
+     * One-button auto-score as a Commands v3 coroutine - the showcase for what v3 buys you.
+     *
+     * <p>{@code awaitAll} runs the three commands concurrently - drivetrain aligns, flywheel spins
+     * up, arm raises - and continues only once all are ready, each releasing its mechanism the
+     * instant it finishes. Commands v2 needed nested groups that held every mechanism throughout.
+     *
+     * <p>{@code noRequirements} is correct: the parent claims nothing; the requirements live on the
+     * children ({@link DriveToTag}, {@link Flywheel#spinUpAndWait}, {@link Arm#scoring}) and the
+     * scheduler enforces them there. No tag visible: {@code DriveToTag} holds zero velocity.
+     * Release the button: the whole thing cancels.
+     */
+    private Command autoScore() {
+        return Command.noRequirements(coroutine -> {
+            coroutine.awaitAll(
+                new DriveToTag(drivetrain),
+                flywheel.spinUpAndWait(),
+                arm.scoring());
+            // Squared up at the tag and up to speed. A feeder/shoot command would go here.
+        }).named("AutoScore");
     }
 
     public Command getAutonomousCommand() {
