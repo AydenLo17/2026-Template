@@ -1,3 +1,7 @@
+// Copyright (c) FIRST and other WPILib contributors.
+// Open Source Software; you can modify and/or share it under the terms of
+// the WPILib BSD license file in the root directory of this project.
+
 package frc.robot.utils;
 
 import java.util.function.BooleanSupplier;
@@ -40,7 +44,7 @@ public abstract class AdvancedMechanism extends Mechanism {
   /**
    * Creates a mechanism with an explicit name, registered with the default scheduler.
    *
-   * @param name The mechanism name
+   * @param name The mechanism name.
    */
   protected AdvancedMechanism(String name) {
     super(name);
@@ -49,8 +53,8 @@ public abstract class AdvancedMechanism extends Mechanism {
   /**
    * Creates a mechanism with an explicit name and scheduler.
    *
-   * @param name The mechanism name
-   * @param scheduler The scheduler to register with
+   * @param name The mechanism name.
+   * @param scheduler The scheduler to register with.
    */
   protected AdvancedMechanism(String name, Scheduler scheduler) {
     super(name, scheduler);
@@ -59,9 +63,9 @@ public abstract class AdvancedMechanism extends Mechanism {
   /**
    * Runs {@code action} a single time, then finishes. (v2: {@code runOnce})
    *
-   * @param name The command name
-   * @param action What to do once
-   * @return The built command
+   * @param name The command name.
+   * @param action What to do once.
+   * @return The built command.
    */
   protected Command runOnce(String name, Runnable action) {
     return run(coroutine -> action.run()).named(name);
@@ -70,9 +74,9 @@ public abstract class AdvancedMechanism extends Mechanism {
   /**
    * Runs {@code action} every loop until interrupted. (v2: {@code run})
    *
-   * @param name The command name
-   * @param action What to do every loop
-   * @return The built command
+   * @param name The command name.
+   * @param action What to do every loop.
+   * @return The built command.
    */
   protected Command run(String name, Runnable action) {
     return runRepeatedly(action).named(name);
@@ -82,10 +86,10 @@ public abstract class AdvancedMechanism extends Mechanism {
    * Runs {@code start} once, holds the mechanism, then runs {@code end} when interrupted. (v2:
    * {@code startEnd})
    *
-   * @param name The command name
-   * @param start What to do once at the start
-   * @param end What to do when interrupted
-   * @return The built command
+   * @param name The command name.
+   * @param start What to do once at the start.
+   * @param end What to do when interrupted.
+   * @return The built command.
    */
   protected Command startEnd(String name, Runnable start, Runnable end) {
     return run(
@@ -100,10 +104,10 @@ public abstract class AdvancedMechanism extends Mechanism {
   /**
    * Runs {@code action} every loop, then runs {@code end} when interrupted. (v2: {@code runEnd})
    *
-   * @param name The command name
-   * @param action What to do every loop
-   * @param end What to do when interrupted
-   * @return The built command
+   * @param name The command name.
+   * @param action What to do every loop.
+   * @param end What to do when interrupted.
+   * @return The built command.
    */
   protected Command runEnd(String name, Runnable action, Runnable end) {
     return runRepeatedly(action).whenCanceled(end).named(name);
@@ -113,10 +117,10 @@ public abstract class AdvancedMechanism extends Mechanism {
    * Runs {@code start} once, then runs {@code action} every loop until interrupted. (v2: {@code
    * startRun})
    *
-   * @param name The command name
-   * @param start What to do once at the start
-   * @param action What to do every loop after that
-   * @return The built command
+   * @param name The command name.
+   * @param start What to do once at the start.
+   * @param action What to do every loop after that.
+   * @return The built command.
    */
   protected Command startRun(String name, Runnable start, Runnable action) {
     return run(
@@ -133,10 +137,10 @@ public abstract class AdvancedMechanism extends Mechanism {
   /**
    * Runs {@code action} every loop until {@code done} becomes true, then finishes.
    *
-   * @param name The command name
-   * @param action What to do every loop
-   * @param done When to stop
-   * @return The built command
+   * @param name The command name.
+   * @param action What to do every loop.
+   * @param done When to stop.
+   * @return The built command.
    */
   protected Command runUntil(String name, Runnable action, BooleanSupplier done) {
     return runRepeatedly(action).until(done).named(name);
@@ -146,9 +150,9 @@ public abstract class AdvancedMechanism extends Mechanism {
    * Owns the mechanism doing nothing until {@code condition} becomes true, then finishes. Like
    * {@link Mechanism#idleFor} but waits on a condition instead of a duration.
    *
-   * @param name The command name
-   * @param condition When to stop idling
-   * @return The built command
+   * @param name The command name.
+   * @param condition When to stop idling.
+   * @return The built command.
    */
   protected Command idleUntil(String name, BooleanSupplier condition) {
     return run(Coroutine::park).until(condition).named(name);

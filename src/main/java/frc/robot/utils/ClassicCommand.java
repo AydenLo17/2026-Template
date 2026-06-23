@@ -1,3 +1,7 @@
+// Copyright (c) FIRST and other WPILib contributors.
+// Open Source Software; you can modify and/or share it under the terms of
+// the WPILib BSD license file in the root directory of this project.
+
 package frc.robot.utils;
 
 import java.util.Arrays;
@@ -61,8 +65,8 @@ public abstract class ClassicCommand implements Command {
   /**
    * Creates a classic-style command.
    *
-   * @param name The command name (shows up in telemetry)
-   * @param requirements The mechanisms this command owns while it runs
+   * @param name The command name (shows up in telemetry).
+   * @param requirements The mechanisms this command owns while it runs.
    */
   protected ClassicCommand(String name, Mechanism... requirements) {
     this.name = name;
@@ -78,7 +82,7 @@ public abstract class ClassicCommand implements Command {
   /**
    * Checked every loop, right after {@link #execute()}.
    *
-   * @return true to finish the command, false to keep running
+   * @return true to finish the command, false to keep running.
    */
   protected boolean isFinished() {
     return false;
@@ -89,7 +93,7 @@ public abstract class ClassicCommand implements Command {
    * motor); don't loop here.
    *
    * @param interrupted false if {@link #isFinished()} ended the command, true if it was interrupted
-   *     by another command claiming one of its mechanisms
+   *     by another command claiming one of its mechanisms.
    */
   protected void end(boolean interrupted) {}
 
