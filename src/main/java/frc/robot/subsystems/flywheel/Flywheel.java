@@ -11,19 +11,17 @@ import com.ctre.phoenix6.controls.MotionMagicVelocityVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-
+import frc.robot.generated.TunerConstants;
+import frc.robot.utils.TalonFXUtil;
 import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import org.wpilib.units.measure.AngularVelocity;
 
-import frc.robot.generated.TunerConstants;
-import frc.robot.utils.AdvancedMechanism;
-import frc.robot.utils.TalonFXUtil;
-
 /**
- * Flywheel - second example subsystem. Same pattern as {@link frc.robot.subsystems.arm.Arm}:
- * owns its motor, hides setters, exposes commands.
+ * Flywheel - second example subsystem. Same pattern as {@link frc.robot.subsystems.arm.Arm}: owns
+ * its motor, hides setters, exposes commands.
  */
-public class Flywheel extends AdvancedMechanism {
+public class Flywheel extends Mechanism {
   // Shooting speed (rotations per second).
   private static final double SHOOTING_SPEED_RPS = 25.0;
 
@@ -31,13 +29,13 @@ public class Flywheel extends AdvancedMechanism {
   private static final double VELOCITY_TOLERANCE_RPS = 0.25;
 
   // PID + feedforward gains.
-  private static final double kS = 0.0;   // static friction compensation
+  private static final double kS = 0.0; // static friction compensation
   private static final double kV = 0.125; // velocity feedforward (volts per rps)
-  private static final double kP = 0.0;   // proportional gain on velocity error
+  private static final double kP = 0.0; // proportional gain on velocity error
 
   // Motion Magic speed limits.
   private static final double MOTION_MAGIC_CRUISE_VELOCITY = 100.0; // max rps
-  private static final double MOTION_MAGIC_ACCELERATION = 1000.0;   // rps² ramp
+  private static final double MOTION_MAGIC_ACCELERATION = 1000.0; // rps² ramp
 
   private final TalonFX motor = new TalonFX(21, TunerConstants.kCANBus);
 
@@ -60,7 +58,7 @@ public class Flywheel extends AdvancedMechanism {
 
   /** Fire-and-forget: command the flywheel toward shooting speed and finish immediately. */
   public Command spinUp() {
-    return runOnce("spinUp", () -> setVelocity(SHOOTING_SPEED_RPS));
+    return runRepeatedly(() -> setVelocity(SHOOTING_SPEED_RPS)).named("spinUp");
   }
 
   /**
@@ -77,26 +75,12 @@ public class Flywheel extends AdvancedMechanism {
 
   /** Stop the flywheel. */
   public Command stop() {
-    return runOnce("stop", motor::stopMotor);
+    return runRepeatedly(motor::stopMotor).named("stop");
   }
 
   /** True when the flywheel is within tolerance of its target speed. */
   public boolean isAtTarget() {
     return motor.getVelocity().getValue().isNear(velocityOut.getVelocityMeasure(), tolerance);
-  }
-
-  // Direct actuators for the in-package classic-style command ({@link FlywheelCommand}). Kept
-  // package-private so the public API stays commands-only - everything outside this package still
-  // goes through spinUp()/spinUpAndWait()/stop() and the scheduler's mechanism ownership.
-
-  /** Command the flywheel toward shooting speed (no command wrapper). */
-  void spinUpDirect() {
-    setVelocity(SHOOTING_SPEED_RPS);
-  }
-
-  /** Stop the flywheel (no command wrapper). */
-  void stopDirect() {
-    motor.stopMotor();
   }
 
   private void setVelocity(double rps) {

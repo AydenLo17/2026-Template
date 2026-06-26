@@ -13,27 +13,26 @@ import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-
-import org.wpilib.command3.Command;
-import org.wpilib.units.measure.Angle;
-
 import frc.robot.generated.TunerConstants;
-import frc.robot.utils.AdvancedMechanism;
 import frc.robot.utils.TalonFXUtil;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.units.measure.Angle;
 
 /**
  * Arm - an example subsystem driven by a Phoenix 6 TalonFX + CANcoder.
  *
  * <p>Pattern to teach: the subsystem owns the hardware, keeps its setters {@code private}, and
  * exposes <b>commands</b> (each returns a {@link Command}). Anything that wants to move the arm
- * does it through a command, which is how the scheduler prevents two things fighting over the motor.
+ * does it through a command, which is how the scheduler prevents two things fighting over the
+ * motor.
  */
-public class Arm extends AdvancedMechanism {
+public class Arm extends Mechanism {
   // Position setpoints (rotations, 1.0 = full turn).
-  private static final double VERTICAL_POSITION = 0.25;       // 90°  - stowed / safe transport
-  private static final double HORIZONTAL_POSITION = 0.5;      // 180° - ground intake
-  private static final double SCORING_POSITION = 0.083;       // ~30° - scoring
-  private static final double SCORING_HIGH_POSITION = 0.125;  // 45°  - high scoring
+  private static final double VERTICAL_POSITION = 0.25; // 90°  - stowed / safe transport
+  private static final double HORIZONTAL_POSITION = 0.5; // 180° - ground intake
+  private static final double SCORING_POSITION = 0.083; // ~30° - scoring
+  private static final double SCORING_HIGH_POSITION = 0.125; // 45°  - high scoring
 
   // How close counts as "at target".
   private static final double POSITION_TOLERANCE_DEGREES = 1.0;
@@ -52,7 +51,7 @@ public class Arm extends AdvancedMechanism {
   // TODO: CRITICAL - set how fast the arm can move.
   // Recommended start: cruise=2 rot/s, accel=4 rot/s².
   private static final double MOTION_MAGIC_CRUISE_VELOCITY = 0.0; // NEEDS SETTING
-  private static final double MOTION_MAGIC_ACCELERATION = 0.0;    // NEEDS SETTING
+  private static final double MOTION_MAGIC_ACCELERATION = 0.0; // NEEDS SETTING
 
   private final TalonFX motor = new TalonFX(31, TunerConstants.kCANBus);
   private final CANcoder encoder = new CANcoder(32, TunerConstants.kCANBus);
@@ -83,22 +82,22 @@ public class Arm extends AdvancedMechanism {
 
   /** Move to the vertical (stowed) position. */
   public Command vertical() {
-    return runOnce("vertical", () -> setPosition(VERTICAL_POSITION));
+    return runRepeatedly(() -> setPosition(VERTICAL_POSITION)).named("vertical");
   }
 
   /** Move to the horizontal (ground intake) position. */
   public Command horizontal() {
-    return runOnce("horizontal", () -> setPosition(HORIZONTAL_POSITION));
+    return runRepeatedly(() -> setPosition(HORIZONTAL_POSITION)).named("horizontal");
   }
 
   /** Move to the scoring position. */
   public Command scoring() {
-    return runOnce("scoring", () -> setPosition(SCORING_POSITION));
+    return runRepeatedly(() -> setPosition(SCORING_POSITION)).named("scoring");
   }
 
   /** Move to the high scoring position (far shots). */
   public Command scoringHigh() {
-    return runOnce("scoringHigh", () -> setPosition(SCORING_HIGH_POSITION));
+    return runRepeatedly(() -> setPosition(SCORING_HIGH_POSITION)).named("scoringHigh");
   }
 
   /** True when the arm has reached its target angle. */

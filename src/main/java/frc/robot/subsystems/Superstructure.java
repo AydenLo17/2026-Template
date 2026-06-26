@@ -4,18 +4,17 @@
 
 package frc.robot.subsystems;
 
-import org.wpilib.command3.Command;
-
 import frc.robot.subsystems.arm.Arm;
 import frc.robot.subsystems.flywheel.Flywheel;
+import org.wpilib.command3.Command;
 
 /**
- * Superstructure - coordinates the Arm and Flywheel so the driver gets one button per
- * robot "pose" instead of juggling both mechanisms by hand.
+ * Superstructure - coordinates the Arm and Flywheel so the driver gets one button per robot "pose"
+ * instead of juggling both mechanisms by hand.
  *
- * <p>Each method returns a command composed of arm and flywheel commands. Because commands
- * inherit their children's requirements, the result requires both subsystems, and
- * {@code Command.parallel(...)} runs them at the same time.
+ * <p>Each method returns a command composed of arm and flywheel commands. Because commands inherit
+ * their children's requirements, the result requires both subsystems, and {@code
+ * Command.parallel(...)} runs them at the same time.
  */
 public class Superstructure {
   private final Arm arm;

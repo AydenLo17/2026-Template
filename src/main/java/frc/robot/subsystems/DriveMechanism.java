@@ -4,22 +4,19 @@
 
 package frc.robot.subsystems;
 
-import java.util.function.Supplier;
-
 import com.ctre.phoenix6.swerve.SwerveRequest;
-
-import org.wpilib.command3.Command;
-import org.wpilib.command3.Scheduler;
-
 import frc.robot.generated.TunerConstants;
-import frc.robot.utils.AdvancedMechanism;
+import java.util.function.Supplier;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.command3.Scheduler;
 
 /**
  * Command-based wrapper around {@link CommandSwerveDrivetrain}. The drivetrain already extends the
  * Tuner-generated class, so it can't also be a {@code Mechanism} (which is a class in Commands v3);
  * this owns the drivetrain instead and exposes the drive commands.
  */
-public class DriveMechanism extends AdvancedMechanism {
+public class DriveMechanism extends Mechanism {
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
 
   public DriveMechanism() {
@@ -35,7 +32,10 @@ public class DriveMechanism extends AdvancedMechanism {
 
   /** Resets the field-centric heading so "forward" matches the driver's current facing. */
   public Command seedFieldCentric() {
-    return runOnce("seedFieldCentric", drivetrain::seedFieldCentric);
+    return run(coroutine -> {
+          drivetrain.seedFieldCentric();
+        })
+        .named("seedFieldCentric");
   }
 
   /**
