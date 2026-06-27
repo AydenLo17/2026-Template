@@ -3,6 +3,7 @@ package frc.robot.utils;
 import com.ctre.phoenix6.StatusCode;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.hardware.TalonFX;
+import org.wpilib.driverstation.DriverStationErrors;
 
 /**
  * Utility class for common TalonFX motor operations.
@@ -27,12 +28,25 @@ public final class TalonFXUtil {
    */
   public static boolean applyConfigWithRetries(
       TalonFX motor, TalonFXConfiguration config, int maxRetries) {
+    StatusCode status = StatusCode.OK;
     for (int i = 0; i < maxRetries; i++) {
-      StatusCode status = motor.getConfigurator().apply(config);
+      status = motor.getConfigurator().apply(config);
       if (status.isOK()) {
         return true;
       }
     }
+    // Every retry failed. Report it so a misconfigured motor isn't silent - callers can still
+    // branch
+    // on the returned false, but they can't accidentally ignore the failure.
+    DriverStationErrors.reportError(
+        "TalonFX "
+            + motor.getDeviceID()
+            + " failed to configure after "
+            + maxRetries
+            + " attempts ("
+            + status
+            + "). Check CAN wiring and device ID.",
+        false);
     return false;
   }
 

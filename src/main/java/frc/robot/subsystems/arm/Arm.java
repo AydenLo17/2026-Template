@@ -32,7 +32,6 @@ public class Arm extends Mechanism {
   private static final double VERTICAL_POSITION = 0.25; // 90°  - stowed / safe transport
   private static final double HORIZONTAL_POSITION = 0.5; // 180° - ground intake
   private static final double SCORING_POSITION = 0.083; // ~30° - scoring
-  private static final double SCORING_HIGH_POSITION = 0.125; // 45°  - high scoring
 
   // How close counts as "at target".
   private static final double POSITION_TOLERANCE_DEGREES = 1.0;
@@ -56,14 +55,13 @@ public class Arm extends Mechanism {
   private final TalonFX motor = new TalonFX(31, TunerConstants.kCANBus);
   private final CANcoder encoder = new CANcoder(32, TunerConstants.kCANBus);
 
-  private final TalonFXConfiguration config = new TalonFXConfiguration();
-
   // Drives the arm to a target angle with a smooth Motion Magic profile.
   private final MotionMagicVoltage positionOut = new MotionMagicVoltage(0);
 
   private final Angle tolerance = Degrees.of(POSITION_TOLERANCE_DEGREES);
 
   public Arm() {
+    TalonFXConfiguration config = new TalonFXConfiguration();
     config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
     config.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;
     config.Slot0.GravityType = GravityTypeValue.Arm_Cosine; // fights gravity automatically
@@ -80,6 +78,9 @@ public class Arm extends Mechanism {
     TalonFXUtil.applyConfigWithRetries(motor, config);
   }
 
+  // The "move and hold" factories use runRepeatedly, which re-sends the Motion Magic request every
+  // loop. Phoenix already holds the last request; re-sending just re-asserts it after a reboot.
+
   /** Move to the vertical (stowed) position. */
   public Command vertical() {
     return runRepeatedly(() -> setPosition(VERTICAL_POSITION)).named("vertical");
@@ -95,9 +96,15 @@ public class Arm extends Mechanism {
     return runRepeatedly(() -> setPosition(SCORING_POSITION)).named("scoring");
   }
 
-  /** Move to the high scoring position (far shots). */
-  public Command scoringHigh() {
-    return runRepeatedly(() -> setPosition(SCORING_HIGH_POSITION)).named("scoringHigh");
+  /**
+   * Move to the scoring position and finish once the arm is there. Await this in a sequence (e.g.
+   * auto-score). The arm holds its angle after this finishes - the last Motion Magic request stays
+   * applied - until another command moves it.
+   */
+  public Command scoringAndWait() {
+    return runRepeatedly(() -> setPosition(SCORING_POSITION))
+        .until(this::isAtTarget)
+        .named("scoringAndWait");
   }
 
   /** True when the arm has reached its target angle. */

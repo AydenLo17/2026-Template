@@ -42,9 +42,8 @@ public class Flywheel extends Mechanism {
   private final MotionMagicVelocityVoltage velocityOut = new MotionMagicVelocityVoltage(0);
   private final AngularVelocity tolerance = RotationsPerSecond.of(VELOCITY_TOLERANCE_RPS);
 
-  private final TalonFXConfiguration config = new TalonFXConfiguration();
-
   public Flywheel() {
+    TalonFXConfiguration config = new TalonFXConfiguration();
     config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
     config.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;
     config.Slot0.kS = kS;
@@ -56,21 +55,12 @@ public class Flywheel extends Mechanism {
     TalonFXUtil.applyConfigWithRetries(motor, config);
   }
 
-  /** Fire-and-forget: command the flywheel toward shooting speed and finish immediately. */
+  // The hold commands below use runRepeatedly, which re-sends the request every loop. Phoenix
+  // already holds the last request; re-sending just re-asserts it if the controller reboots.
+
+  /** Command the flywheel to shooting speed and hold it there until interrupted or superseded. */
   public Command spinUp() {
     return runRepeatedly(() -> setVelocity(SHOOTING_SPEED_RPS)).named("spinUp");
-  }
-
-  /**
-   * Command the flywheel toward shooting speed and hold the mechanism until it is at speed. If
-   * interrupted before reaching speed the motor is stopped; on a natural finish it is left
-   * spinning, ready to shoot.
-   */
-  public Command spinUpAndWait() {
-    return runRepeatedly(() -> setVelocity(SHOOTING_SPEED_RPS))
-        .until(this::isAtTarget)
-        .whenCanceled(motor::stopMotor)
-        .named("spinUpAndWait");
   }
 
   /** Stop the flywheel. */

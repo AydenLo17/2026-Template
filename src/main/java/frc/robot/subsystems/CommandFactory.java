@@ -16,11 +16,11 @@ import org.wpilib.command3.Command;
  * their children's requirements, the result requires both subsystems, and {@code
  * Command.parallel(...)} runs them at the same time.
  */
-public class Superstructure {
+public class CommandFactory {
   private final Arm arm;
   private final Flywheel flywheel;
 
-  public Superstructure(Arm arm, Flywheel flywheel) {
+  public CommandFactory(Arm arm, Flywheel flywheel) {
     this.arm = arm;
     this.flywheel = flywheel;
   }

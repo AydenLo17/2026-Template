@@ -6,16 +6,14 @@ package frc.robot.commands;
 
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
-
+import frc.robot.subsystems.DriveMechanism;
+import frc.robot.subsystems.vision.LimelightHelpers;
+import frc.robot.utils.ClassicCommand;
 import org.wpilib.math.controller.ProfiledPIDController;
 import org.wpilib.math.geometry.Pose3d;
 import org.wpilib.math.geometry.Rotation2d;
 import org.wpilib.math.kinematics.ChassisVelocities;
 import org.wpilib.math.trajectory.TrapezoidProfile;
-
-import frc.robot.subsystems.DriveMechanism;
-import frc.robot.subsystems.vision.LimelightHelpers;
-import frc.robot.utils.ClassicCommand;
 
 /**
  * Drive to a standoff point in front of an AprilTag, vision-only (no odometry).
@@ -24,10 +22,14 @@ import frc.robot.utils.ClassicCommand;
  * the LL web UI, per-fiducial in the field map), so this command just drives the measured distance
  * to zero. Change the standoff by editing the POI offset on the camera.
  *
- * <p>"Classic-style" Commands v3 command on {@link ClassicCommand}: the v2 lifecycle hooks
- * ({@link #initialize}, {@link #execute}, {@link #isFinished}, {@link #end}) do the work and the
- * framework wires the coroutine. The whole feature - Limelight read, three trapezoidal PIDs, drive
- * request, done-condition - lives in this one file.
+ * <p>"Classic-style" Commands v3 command on {@link ClassicCommand}: the v2 lifecycle hooks ({@link
+ * #initialize}, {@link #execute}, {@link #isFinished}, {@link #end}) do the work and the framework
+ * wires the coroutine. The whole feature - Limelight read, three trapezoidal PIDs, drive request,
+ * done-condition - lives in this one file.
+ *
+ * <p><b>Two styles, same behavior:</b> {@link DriveToTagInline} is this exact command written as a
+ * single v3 coroutine instead of lifecycle methods. Compare the two to see the trade-off - explicit
+ * {@code initialize/execute/isFinished/end} hooks here vs. one linear body there.
  */
 public class DriveToTag extends ClassicCommand {
   // NetworkTables name of the Limelight ("limelight" is the default hostname).
@@ -35,11 +37,11 @@ public class DriveToTag extends ClassicCommand {
 
   // --- Translation limits. TODO: tune to the drivetrain's real capability. ---
   private static final double MAX_LINEAR_VELOCITY = 2.5; // m/s
-  private static final double MAX_LINEAR_ACCEL = 3.0;    // m/s^2
+  private static final double MAX_LINEAR_ACCEL = 3.0; // m/s^2
 
   // --- Rotation limits. ---
-  private static final double MAX_ANGULAR_VELOCITY = Math.PI;     // rad/s
-  private static final double MAX_ANGULAR_ACCEL = 2.0 * Math.PI;  // rad/s^2
+  private static final double MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
+  private static final double MAX_ANGULAR_ACCEL = 2.0 * Math.PI; // rad/s^2
 
   // --- Feedback gains. Default 0: the feedforward in execute() does the work, PID only corrects
   // drift. TODO: tune. Raise kP if the bot trails the profile; lower it (or add kD) if it
@@ -48,26 +50,39 @@ public class DriveToTag extends ClassicCommand {
   private static final double HEADING_KP = 0.0;
 
   // --- "Close enough" tolerances. ---
-  private static final double TRANSLATION_TOLERANCE = 0.03;             // meters
-  private static final double HEADING_TOLERANCE = Math.toRadians(2.0);  // radians
+  private static final double TRANSLATION_TOLERANCE = 0.03; // meters
+  private static final double HEADING_TOLERANCE = Math.toRadians(2.0); // radians
 
   private final DriveMechanism drivetrain;
 
   // One trapezoidal PID per axis. The profile inside each gives acceleration limiting - a plain
   // PIDController would command full output instantly.
-  private final ProfiledPIDController distance = new ProfiledPIDController(
-      TRANSLATION_KP, 0.0, 0.0,
-      new TrapezoidProfile.Constraints(MAX_LINEAR_VELOCITY, MAX_LINEAR_ACCEL));
-  private final ProfiledPIDController lateral = new ProfiledPIDController(
-      TRANSLATION_KP, 0.0, 0.0,
-      new TrapezoidProfile.Constraints(MAX_LINEAR_VELOCITY, MAX_LINEAR_ACCEL));
-  private final ProfiledPIDController heading = new ProfiledPIDController(
-      HEADING_KP, 0.0, 0.0,
-      new TrapezoidProfile.Constraints(MAX_ANGULAR_VELOCITY, MAX_ANGULAR_ACCEL));
+  private final ProfiledPIDController distance =
+      new ProfiledPIDController(
+          TRANSLATION_KP,
+          0.0,
+          0.0,
+          new TrapezoidProfile.Constraints(MAX_LINEAR_VELOCITY, MAX_LINEAR_ACCEL));
+  private final ProfiledPIDController lateral =
+      new ProfiledPIDController(
+          TRANSLATION_KP,
+          0.0,
+          0.0,
+          new TrapezoidProfile.Constraints(MAX_LINEAR_VELOCITY, MAX_LINEAR_ACCEL));
+  private final ProfiledPIDController heading =
+      new ProfiledPIDController(
+          HEADING_KP,
+          0.0,
+          0.0,
+          new TrapezoidProfile.Constraints(MAX_ANGULAR_VELOCITY, MAX_ANGULAR_ACCEL));
 
   // Robot-relative velocity request: open-loop drive so no drive-velocity PID tuning is required.
-  private final SwerveRequest.ApplyRobotVelocity driveRequest = new SwerveRequest.ApplyRobotVelocity()
-      .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
+  private final SwerveRequest.ApplyRobotVelocity driveRequest =
+      new SwerveRequest.ApplyRobotVelocity().withDriveRequestType(DriveRequestType.OpenLoopVoltage);
+
+  // Latest target-space reading, cached by execute() so isFinished() can reuse it instead of
+  // reading the Limelight a second time in the same loop.
+  private Pose3d robotInTag = Pose3d.kZero;
 
   public DriveToTag(DriveMechanism drivetrain) {
     super("DriveToTag", drivetrain); // name + requirement, like v2 addRequirements(drivetrain)
@@ -80,16 +95,16 @@ public class DriveToTag extends ClassicCommand {
 
   /**
    * Seeds the profiles to the current measurement so the approach starts from a standstill. If no
-   * tag is in view, skip seeding: {@link #execute} holds still until the tag appears and
-   * {@link #isFinished} gates on visibility, so we won't falsely report "done."
+   * tag is in view, skip seeding: {@link #execute} holds still until the tag appears and {@link
+   * #isFinished} gates on visibility, so we won't falsely report "done."
    */
   @Override
   protected void initialize() {
-    Pose3d robotInTag = LimelightHelpers.getBotPose3d_TargetSpace(CAMERA);
+    robotInTag = LimelightHelpers.getBotPose3d_TargetSpace(CAMERA);
     if (robotInTag.equals(Pose3d.kZero)) {
       return;
     }
-    
+
     distance.reset(Math.abs(robotInTag.getZ()));
     lateral.reset(-robotInTag.getX());
     heading.reset(-robotInTag.getRotation().getY());
@@ -100,36 +115,43 @@ public class DriveToTag extends ClassicCommand {
   protected void execute() {
     // Robot pose in target space (+X right of tag, +Y down, +Z out of the tag face); zero Pose3d
     // means no valid target. Preferred over getTV(), which can flip true before target-space fills.
-    Pose3d robotInTag = LimelightHelpers.getBotPose3d_TargetSpace(CAMERA);
+    robotInTag = LimelightHelpers.getBotPose3d_TargetSpace(CAMERA);
     if (robotInTag.equals(Pose3d.kZero)) {
       drivetrain.setControl(driveRequest.withVelocity(new ChassisVelocities()));
       return;
     }
 
-    double measuredDistance = Math.abs(robotInTag.getZ());      // out from the tag, always positive
-    double measuredLateral = -robotInTag.getX();                // + = robot LEFT of the tag normal
-    double measuredHeading = -robotInTag.getRotation().getY();  // + = robot rotated CCW
+    double measuredDistance = Math.abs(robotInTag.getZ()); // out from the tag, always positive
+    double measuredLateral = -robotInTag.getX(); // + = robot LEFT of the tag normal
+    double measuredHeading = -robotInTag.getRotation().getY(); // + = robot rotated CCW
 
     // Tag-frame velocities: PID + profile-velocity feedforward. FF commands the profile's velocity
     // directly; PID only corrects drift. Without FF the robot trails the setpoint.
-    double vx = -(distance.calculate(measuredDistance, 0.0) + distance.getSetpoint().velocity); // + toward tag (standoff = POI offset)
-    double vy = lateral.calculate(measuredLateral, 0.0) + lateral.getSetpoint().velocity;       // + to the robot's left
-    double omega = heading.calculate(measuredHeading, 0.0) + heading.getSetpoint().velocity;    // + CCW
+    double vx =
+        -(distance.calculate(measuredDistance, 0.0)
+            + distance.getSetpoint().velocity); // + toward tag (standoff = POI offset)
+    double vy =
+        lateral.calculate(measuredLateral, 0.0)
+            + lateral.getSetpoint().velocity; // + to the robot's left
+    double omega =
+        heading.calculate(measuredHeading, 0.0) + heading.getSetpoint().velocity; // + CCW
 
     // Rotate tag-frame velocities into the body frame and command the swerve.
-    ChassisVelocities body = new ChassisVelocities(vx, vy, omega)
-        .toRobotRelative(Rotation2d.fromRadians(measuredHeading));
+    ChassisVelocities body =
+        new ChassisVelocities(vx, vy, omega)
+            .toRobotRelative(Rotation2d.fromRadians(measuredHeading));
     drivetrain.setControl(driveRequest.withVelocity(body));
   }
 
   /**
-   * Done when we have a valid target-space reading AND all three controllers are at-goal. The
-   * validity gate avoids a false "done" before the first calculate() sets the goal - a fresh
-   * controller reports at-goal because its goal and setpoint both default to zero.
+   * Done when we have a valid target-space reading AND all three controllers are at-goal. Reuses
+   * the reading execute() just cached, so the loop hits the Limelight only once. The validity gate
+   * avoids a false "done" before the first calculate() sets the goal - a fresh controller reports
+   * at-goal because its goal and setpoint both default to zero.
    */
   @Override
   protected boolean isFinished() {
-    return !LimelightHelpers.getBotPose3d_TargetSpace(CAMERA).equals(Pose3d.kZero)
+    return !robotInTag.equals(Pose3d.kZero)
         && distance.atGoal()
         && lateral.atGoal()
         && heading.atGoal();

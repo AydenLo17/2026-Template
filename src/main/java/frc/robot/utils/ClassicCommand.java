@@ -6,7 +6,6 @@ package frc.robot.utils;
 
 import java.util.Arrays;
 import java.util.Set;
-
 import org.wpilib.command3.Command;
 import org.wpilib.command3.Coroutine;
 import org.wpilib.command3.Mechanism;
@@ -14,12 +13,11 @@ import org.wpilib.command3.Mechanism;
 /**
  * The classic four-method command style on top of Commands v3 coroutines.
  *
- * <p>Commands v3 commands are normally written as a single linear coroutine body (see {@link
- * AdvancedMechanism} and {@code mechanism.run(...)}). For something with explicit, stateful steps -
- * or for students coming from the v2 docs - the familiar {@code initialize} / {@code execute} /
- * {@code isFinished} / {@code end} lifecycle can be clearer. Extend this class and override the
- * pieces you need; the instance <i>is</i> a {@link Command}, so it can be scheduled or bound to a
- * trigger directly.
+ * <p>Commands v3 commands are normally written as a single linear coroutine body (see {@code
+ * mechanism.run(...)}). For something with explicit, stateful steps - or for students coming from
+ * the v2 docs - the familiar {@code initialize} / {@code execute} / {@code isFinished} / {@code
+ * end} lifecycle can be clearer. Extend this class and override the pieces you need; the instance
+ * <i>is</i> a {@link Command}, so it can be scheduled or bound to a trigger directly.
  *
  * <p>The lifecycle matches v2:
  *
@@ -29,8 +27,8 @@ import org.wpilib.command3.Mechanism;
  *   <li>{@link #isFinished()} is checked every loop, right after {@code execute}; return true to
  *       finish.
  *   <li>{@link #end(boolean)} runs once when the command ends - {@code interrupted=false} when
- *       {@code isFinished} returned true, {@code interrupted=true} when another command stole one of
- *       this command's mechanisms.
+ *       {@code isFinished} returned true, {@code interrupted=true} when another command stole one
+ *       of this command's mechanisms.
  * </ul>
  *
  * <p>Under the hood this is just a coroutine: {@code initialize}, then a {@code while} loop that
@@ -112,7 +110,8 @@ public abstract class ClassicCommand implements Command {
 
   @Override
   public final void onCancel() {
-    end(true); // interrupted finish (coroutine was dropped; this is the only cleanup hook that runs)
+    end(true); // interrupted finish (coroutine was dropped; this is the only cleanup hook that
+    // runs)
   }
 
   @Override

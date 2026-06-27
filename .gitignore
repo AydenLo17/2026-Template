@@ -186,5 +186,6 @@ compile_commands.json
 # Eclipse generated file for annotation processors
 .factorypath
 
-# Claude Code local tooling/config
-.claude/
+# Claude Code local tooling/config (but DO track shared skills so teammates get them)
+.claude/*
+!.claude/skills/

@@ -85,7 +85,7 @@ public class TunerConstants {
   public static final CANBus kCANBus = new CANBus("canivore", "./logs/example.hoot");
 
   // Measured robot speed (m/s) at 12 V applied output;
-  // This is NOT the desired max robot speed - see MaxSpeed in RobotContainer instead;
+  // This is NOT the desired max robot speed - see maxSpeed in TeleopOpMode instead;
   // This needs to be tuned to your individual robot
   public static final LinearVelocity kSpeedAt12Volts = MetersPerSecond.of(4.54);
 
