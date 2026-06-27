@@ -13,6 +13,9 @@ import org.wpilib.command3.Mechanism;
 import org.wpilib.command3.Scheduler;
 import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.linalg.Matrix;
+import org.wpilib.math.numbers.N1;
+import org.wpilib.math.numbers.N3;
 
 /**
  * Command-based wrapper around {@link CommandSwerveDrivetrain}. The drivetrain already extends the
@@ -76,5 +79,27 @@ public class DriveMechanism extends Mechanism {
   public ChassisVelocities getFieldVelocity() {
     var state = drivetrain.getState();
     return state.Velocity.toFieldRelative(state.Pose.getRotation());
+  }
+
+  /**
+   * Fuses a vision pose estimate into the drivetrain's Kalman filter. Exposed so the {@link
+   * frc.robot.subsystems.vision.Limelight} pose estimator can correct odometry without direct
+   * access to the Phoenix swerve object.
+   *
+   * <p><b>Timebase:</b> the Phoenix pose estimator stamps its odometry buffer with {@code
+   * Utils.getCurrentTimeSeconds()}, so {@code timestampSeconds} must be in that same epoch.
+   * Limelight reports timestamps in the WPILib timebase ({@code Timer.getTimestamp()}); the {@code
+   * Limelight} subsystem converts before calling this. (Phoenix 6 dropped {@code
+   * Utils.fpgaToCurrentTime} in the 2027 line, so the conversion is done by sampling the offset
+   * there.)
+   *
+   * @param visionRobotPose the robot pose measured by vision, blue-alliance-origin
+   * @param timestampSeconds measurement timestamp in the {@code Utils.getCurrentTimeSeconds()}
+   *     epoch
+   * @param stdDevs measurement standard deviations [x, y, theta]ᵀ (meters, radians)
+   */
+  public void addVisionMeasurement(
+      Pose2d visionRobotPose, double timestampSeconds, Matrix<N3, N1> stdDevs) {
+    drivetrain.addVisionMeasurement(visionRobotPose, timestampSeconds, stdDevs);
   }
 }

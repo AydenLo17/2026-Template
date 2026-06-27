@@ -9,6 +9,7 @@ import frc.robot.subsystems.CommandFactory;
 import frc.robot.subsystems.DriveMechanism;
 import frc.robot.subsystems.arm.Arm;
 import frc.robot.subsystems.flywheel.Flywheel;
+import frc.robot.subsystems.vision.Limelight;
 import frc.robot.utils.SimStartup;
 import org.wpilib.command3.Scheduler;
 import org.wpilib.command3.button.RobotModeTriggers;
@@ -48,6 +49,9 @@ public class Robot extends OpModeRobot {
     // binding is global; the opmodes' bindings are scoped to their OpMode and removed on a switch.
     final var idle = new SwerveRequest.Idle();
     RobotModeTriggers.disabled().whileTrue(drivetrain.applyRequest(() -> idle));
+
+    // Vision: wire up every Limelight in one call (names must match each camera's NT name).
+    Limelight.registerAll(drivetrain, "limelight-br", "limelight-bl");
   }
 
   @Override
