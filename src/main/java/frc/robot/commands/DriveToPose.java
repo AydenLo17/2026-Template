@@ -38,34 +38,25 @@ import org.wpilib.math.trajectory.TrapezoidProfile;
  * the v2 lifecycle hooks do the work and the framework wires the coroutine.
  */
 public class DriveToPose extends ClassicCommand {
-  // --- Translation limits. TODO: tune to the drivetrain's real capability. ---
-  private static final double MAX_LINEAR_VELOCITY = 2.5; // m/s
-  private static final double MAX_LINEAR_ACCEL = 3.0; // m/s^2
-
-  // --- Rotation limits. ---
-  private static final double MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
-  private static final double MAX_ANGULAR_ACCEL = 2.0 * Math.PI; // rad/s^2
-
-  // --- Feedback gains. The profile feedforward does the bulk of the driving; PID only pulls the
-  // measured pose back onto the profiled pose. TODO: tune. Raise kP if the bot lags the profile or
-  // settles short of the goal; lower it (or add kD) if it oscillates. ---
-  private static final double TRANSLATION_KP = 3.0; // (m/s) per meter of error
-  private static final double HEADING_KP = 4.0; // (rad/s) per radian of error
-
   private final DriveMechanism drivetrain;
   private final Pose2d goal;
 
-  // The straight-line profile generator: linear constraints for translation, angular for heading.
+  // The straight-line profile generator: linear constraints (max m/s, max m/s^2) for translation,
+  // angular (max rad/s, max rad/s^2) for heading. TODO: tune to the drivetrain's real capability.
   private final LinearPath path =
       new LinearPath(
-          new TrapezoidProfile.Constraints(MAX_LINEAR_VELOCITY, MAX_LINEAR_ACCEL),
-          new TrapezoidProfile.Constraints(MAX_ANGULAR_VELOCITY, MAX_ANGULAR_ACCEL));
+          new TrapezoidProfile.Constraints(2.5, 3.0),
+          new TrapezoidProfile.Constraints(Math.PI, 2.0 * Math.PI));
 
   // Pose-error feedback, one controller per field axis. These correct measured-vs-profiled drift;
-  // the profile velocity is the feedforward that actually moves the robot.
-  private final PIDController xController = new PIDController(TRANSLATION_KP, 0.0, 0.0);
-  private final PIDController yController = new PIDController(TRANSLATION_KP, 0.0, 0.0);
-  private final PIDController headingController = new PIDController(HEADING_KP, 0.0, 0.0);
+  // the profile velocity is the feedforward that actually moves the robot. The kP is the only gain
+  // (kI/kD = 0): translation in (m/s) per meter of error, heading in (rad/s) per radian. TODO:
+  // tune.
+  // Raise kP if the bot lags the profile or settles short of the goal; lower it (or add kD) if it
+  // oscillates.
+  private final PIDController xController = new PIDController(3.0, 0.0, 0.0);
+  private final PIDController yController = new PIDController(3.0, 0.0, 0.0);
+  private final PIDController headingController = new PIDController(4.0, 0.0, 0.0);
 
   // Field-relative velocity request. Blue-origin perspective so the commanded velocity is in the
   // same frame as the odometry pose (which is always blue-origin); open-loop drive so no

@@ -18,11 +18,10 @@ import org.wpilib.opmode.PeriodicOpMode;
  * this replaces the {@code SendableChooser}. Add another annotated class per routine and they all
  * appear by name on the driver station; the one the driver selects is the only one constructed.
  *
- * <p>This example sequences two {@link DriveToPose} legs with {@code coroutine.await}: each leg
- * runs to completion (the bot reaches the pose) before the next starts. Because the routine itself
- * owns no mechanisms ({@code Command.noRequirements}), the requirement lives on each {@code
- * DriveToPose} and the scheduler hands the drivetrain off between legs. Swap in your real field
- * poses, or add more legs / superstructure actions.
+ * <p>This example sequences two {@link DriveToPose} legs with {@code andThen}: each leg runs to
+ * completion (the bot reaches the pose) before the next starts. The resulting sequential group
+ * inherits its children's requirements (the drivetrain), and the scheduler hands the drivetrain off
+ * between legs. Swap in your real field poses, or add more legs / superstructure actions.
  *
  * <p>{@link #start()} fires once when the robot is enabled, which is where the routine is
  * scheduled.
@@ -39,11 +38,9 @@ public class AutonomousOpMode extends PeriodicOpMode {
         new Pose2d(2.0, 1.5, Rotation2d.fromDegrees(90)); // then 1.5 m left, facing +y
 
     routine =
-        Command.noRequirements(
-                coroutine -> {
-                  coroutine.await(new DriveToPose(robot.drivetrain, firstLeg));
-                  coroutine.await(new DriveToPose(robot.drivetrain, secondLeg));
-                })
+        Command.sequence(
+                new DriveToPose(robot.drivetrain, firstLeg),
+                new DriveToPose(robot.drivetrain, secondLeg))
             .named("DriveToPose Auto");
   }
 

@@ -34,53 +34,26 @@ import org.wpilib.math.trajectory.TrapezoidProfile;
  * explicit lifecycle hooks there.
  */
 public final class DriveToTagInline {
-  // NetworkTables name of the Limelight ("limelight" is the default hostname).
-  private static final String CAMERA = "limelight";
-
-  // --- Translation limits. TODO: tune to the drivetrain's real capability. ---
-  private static final double MAX_LINEAR_VELOCITY = 2.5; // m/s
-  private static final double MAX_LINEAR_ACCEL = 3.0; // m/s^2
-
-  // --- Rotation limits. ---
-  private static final double MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
-  private static final double MAX_ANGULAR_ACCEL = 2.0 * Math.PI; // rad/s^2
-
-  // --- Feedback gains. Default 0: the feedforward in execute() does the work, PID only corrects
-  // drift. TODO: tune. Raise kP if the bot trails the profile; lower it (or add kD) if it
-  // oscillates near the goal. ---
-  private static final double TRANSLATION_KP = 0.0;
-  private static final double HEADING_KP = 0.0;
-
-  // --- "Close enough" tolerances. ---
-  private static final double TRANSLATION_TOLERANCE = 0.03; // meters
-  private static final double HEADING_TOLERANCE = Math.toRadians(2.0); // radians
-
   private DriveToTagInline() {}
 
   /**
    * Creates the drive-to-tag command. The controllers are locals, so each schedule starts fresh.
    */
-  public static Command create(DriveMechanism drivetrain) {
-    // One trapezoidal PID per axis. The profile inside each gives acceleration limiting - a plain
-    // PIDController would command full output instantly.
+  public static Command create(DriveMechanism drivetrain, String camera, int targetTagId) {
+    // One trapezoidal PID per axis. The profile inside each (max velocity, max accel) gives
+    // acceleration limiting - a plain PIDController would command full output instantly.
+    // Translation
+    // limits are m/s and m/s^2, rotation rad/s and rad/s^2. The kP gains default to 0: the
+    // feedforward below does the work, PID only corrects drift. TODO: tune both - the limits to the
+    // drivetrain's real capability, and kP (raise if the bot trails the profile; lower, or add kD,
+    // if it oscillates near the goal).
     ProfiledPIDController distance =
-        new ProfiledPIDController(
-            TRANSLATION_KP,
-            0.0,
-            0.0,
-            new TrapezoidProfile.Constraints(MAX_LINEAR_VELOCITY, MAX_LINEAR_ACCEL));
+        new ProfiledPIDController(0.0, 0.0, 0.0, new TrapezoidProfile.Constraints(2.5, 3.0));
     ProfiledPIDController lateral =
-        new ProfiledPIDController(
-            TRANSLATION_KP,
-            0.0,
-            0.0,
-            new TrapezoidProfile.Constraints(MAX_LINEAR_VELOCITY, MAX_LINEAR_ACCEL));
+        new ProfiledPIDController(0.0, 0.0, 0.0, new TrapezoidProfile.Constraints(2.5, 3.0));
     ProfiledPIDController heading =
         new ProfiledPIDController(
-            HEADING_KP,
-            0.0,
-            0.0,
-            new TrapezoidProfile.Constraints(MAX_ANGULAR_VELOCITY, MAX_ANGULAR_ACCEL));
+            0.0, 0.0, 0.0, new TrapezoidProfile.Constraints(Math.PI, 2.0 * Math.PI));
 
     // Robot-relative velocity request: open-loop drive so no drive-velocity PID tuning is required.
     SwerveRequest.ApplyRobotVelocity driveRequest =
@@ -88,20 +61,27 @@ public final class DriveToTagInline {
             .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
 
     heading.enableContinuousInput(-Math.PI, Math.PI);
-    distance.setTolerance(TRANSLATION_TOLERANCE);
-    lateral.setTolerance(TRANSLATION_TOLERANCE);
-    heading.setTolerance(HEADING_TOLERANCE);
+    distance.setTolerance(0.03); // meters
+    lateral.setTolerance(0.03); // meters
+    heading.setTolerance(Math.toRadians(2.0)); // radians
 
     return drivetrain
         .run(
             (Coroutine coroutine) -> {
+              // Make our tag the camera's primary target, so target-space pose is measured against
+              // it. In the lambda (not create()) so it re-applies on every schedule.
+              LimelightHelpers.setPriorityTagID(camera, targetTagId);
+
               // initialize: seed the profiles to the current measurement so the approach starts
               // from a
               // standstill. If no tag is in view, skip seeding: the loop below holds still until
               // the tag
               // appears and the finish check gates on visibility, so we won't falsely report
               // "done."
-              Pose3d robotInTag = LimelightHelpers.getBotPose3d_TargetSpace(CAMERA);
+              Pose3d robotInTag =
+                  onTargetTag(camera, targetTagId)
+                      ? LimelightHelpers.getBotPose3d_TargetSpace(camera)
+                      : Pose3d.kZero;
               if (!robotInTag.equals(Pose3d.kZero)) {
                 distance.reset(Math.abs(robotInTag.getZ()));
                 lateral.reset(-robotInTag.getX());
@@ -110,13 +90,21 @@ public final class DriveToTagInline {
 
               // execute + isFinished: runs every robot loop while the command is active.
               while (true) {
+                // If the camera's primary tag isn't ours (wrong tag, or none in view), don't drive
+                // - idle and wait for it.
+                if (!onTargetTag(camera, targetTagId)) {
+                  drivetrain.setControl(new SwerveRequest.Idle());
+                  coroutine.yield();
+                  continue;
+                }
+
                 // Robot pose in target space (+X right of tag, +Y down, +Z out of the tag face);
-                // zero Pose3d
-                // means no valid target. Preferred over getTV(), which can flip true before
-                // target-space fills.
-                robotInTag = LimelightHelpers.getBotPose3d_TargetSpace(CAMERA);
+                // zero Pose3d means the target-space data hasn't filled yet (it can lag the tag id
+                // by a frame). Preferred over getTV(), which can flip true before target-space
+                // fills.
+                robotInTag = LimelightHelpers.getBotPose3d_TargetSpace(camera);
                 if (robotInTag.equals(Pose3d.kZero)) {
-                  drivetrain.setControl(driveRequest.withVelocity(new ChassisVelocities()));
+                  drivetrain.setControl(new SwerveRequest.Idle());
                   coroutine.yield();
                   continue;
                 }
@@ -156,10 +144,24 @@ public final class DriveToTagInline {
                 coroutine.yield();
               }
 
-              // end: idles the drivetrain. Runs on both natural finish and interruption.
+              // end: idle the drivetrain and clear the tag priority.
               drivetrain.setControl(new SwerveRequest.Idle());
+              LimelightHelpers.setPriorityTagID(camera, -1); // back to normal targeting
             })
-        .whenCanceled(() -> drivetrain.setControl(new SwerveRequest.Idle()))
+        .whenCanceled(
+            () -> {
+              drivetrain.setControl(new SwerveRequest.Idle());
+              LimelightHelpers.setPriorityTagID(camera, -1);
+            })
         .named("DriveToTag");
+  }
+
+  /**
+   * True when the camera's primary in-view tag is {@code targetTagId}. setPriorityTagID makes it
+   * the primary target when visible; this guards the case where it isn't (wrong tag or none), so we
+   * idle instead of aligning to the wrong tag.
+   */
+  private static boolean onTargetTag(String camera, int targetTagId) {
+    return (int) LimelightHelpers.getFiducialID(camera) == targetTagId;
   }
 }

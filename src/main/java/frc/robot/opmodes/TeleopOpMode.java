@@ -15,7 +15,6 @@ import frc.robot.commands.DriveToTag;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandFactory;
 import frc.robot.subsystems.DriveMechanism;
-import org.wpilib.command3.Command;
 import org.wpilib.command3.button.CommandNiDsXboxController;
 import org.wpilib.opmode.PeriodicOpMode;
 import org.wpilib.opmode.Teleop;
@@ -32,6 +31,11 @@ import org.wpilib.opmode.Teleop;
  */
 @Teleop(name = "Teleop")
 public class TeleopOpMode extends PeriodicOpMode {
+  // Which Limelight to align with, and the AprilTag to align to. TODO: pick the real scoring tag
+  // (and flip per alliance) once the game is wired - see the game-info conventions.
+  private static final String ALIGN_CAMERA = "limelight";
+  private static final int ALIGN_TAG_ID = 1;
+
   private final double maxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // top speed
   private final double maxAngularRate = RotationsPerSecond.of(0.75).in(RadiansPerSecond); // 3/4 rps
 
@@ -66,26 +70,9 @@ public class TeleopOpMode extends PeriodicOpMode {
     driver.rightTrigger().whileTrue(superstructure.stow()); // back to safe travel pose
 
     // Hold A: vision-only auto-align to the tag standoff.
-    driver.a().whileTrue(new DriveToTag(drivetrain));
+    driver.a().whileTrue(new DriveToTag(drivetrain, ALIGN_CAMERA, ALIGN_TAG_ID));
 
-    // Hold Y: the full auto-score sequence (lock tag, then align + spin up + raise arm together).
-    driver.y().whileTrue(autoScore(robot));
-  }
-
-  /**
-   * One-button auto-score prep, held while Y is down. {@code awaitAll} runs the three commands
-   * concurrently: the drivetrain aligns to the tag and then releases (DriveToTag finishes), the
-   * flywheel spins up and holds shooting speed, and the arm raises to the scoring pose. Release Y
-   * to stop. {@code noRequirements} is correct: the parent claims nothing; the requirements live on
-   * the children and the scheduler enforces them there.
-   */
-  private static Command autoScore(Robot robot) {
-    return Command.noRequirements(
-            coroutine ->
-                coroutine.awaitAll(
-                    new DriveToTag(robot.drivetrain),
-                    robot.flywheel.spinUp(),
-                    robot.arm.scoringAndWait()))
-        .named("AutoScore");
+    // Hold Y: auto-score prep - raise the arm and spin up the flywheel together.
+    driver.y().whileTrue(superstructure.autoScore());
   }
 }

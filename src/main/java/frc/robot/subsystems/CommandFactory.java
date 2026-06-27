@@ -39,4 +39,13 @@ public class CommandFactory {
   public Command score() {
     return Command.parallel(arm.scoring(), flywheel.spinUp()).named("Score");
   }
+
+  /**
+   * Auto-score prep: raise the arm to its scoring pose and hold shooting speed. Like {@link
+   * #score()} but the arm command finishes once it reaches the pose ({@code scoringAndWait});
+   * {@code spinUp} runs forever, so the group runs until it is cancelled.
+   */
+  public Command autoScore() {
+    return Command.parallel(arm.scoringAndWait(), flywheel.spinUp()).named("AutoScore");
+  }
 }
