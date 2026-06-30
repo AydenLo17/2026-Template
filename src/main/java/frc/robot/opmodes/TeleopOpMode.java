@@ -73,6 +73,6 @@ public class TeleopOpMode extends PeriodicOpMode {
     driver.a().whileTrue(new DriveToTag(drivetrain, ALIGN_CAMERA, ALIGN_TAG_ID));
 
     // Hold Y: auto-score prep - raise the arm and spin up the flywheel together.
-    driver.y().whileTrue(superstructure.autoScore());
+    driver.y().whileTrue(superstructure.autoScore()).whileFalse(robot.flywheel.stop());
   }
 }

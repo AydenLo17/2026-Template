@@ -61,7 +61,6 @@ public class Flywheel extends Mechanism {
   /** Command the flywheel to shooting speed and hold it there until interrupted or superseded. */
   public Command spinUp() {
     return runRepeatedly(() -> setVelocity(SHOOTING_SPEED_RPS))
-        .whenCanceled(motor::stopMotor)
         .named("spinUp");
   }
 

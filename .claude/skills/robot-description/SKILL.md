@@ -55,7 +55,7 @@ constructor taking `(Robot robot)` (or no args). Selecting a mode prints
 
 | File | Annotation | What it does |
 | --- | --- | --- |
-| [TeleopOpMode.java](src/main/java/frc/robot/opmodes/TeleopOpMode.java) | `@Teleop("Teleop")` | Driver experience. Xbox controller on port 0; field-centric swerve as the drivetrain default command; bumpers/triggers map to superstructure presets; **A** = `DriveToTag` align; **Y** = `autoScore()` (align + spin up + raise arm concurrently). |
+| [TeleopOpMode.java](src/main/java/frc/robot/opmodes/TeleopOpMode.java) | `@Teleop("Teleop")` | Driver experience. Xbox controller on port 0; field-centric swerve as the drivetrain default command; bumpers/triggers map to superstructure presets; **A** = `DriveToTag` align; **Y** = `autoScore()` (raise arm to scoring pose + spin up flywheel concurrently; releasing **Y** stops the flywheel). |
 | [AutonomousOpMode.java](src/main/java/frc/robot/opmodes/AutonomousOpMode.java) | `@Autonomous("Drive To Pose")` | Example routine: sequences two `DriveToPose` legs with `coroutine.await(...)`. The routine owns no mechanisms (`Command.noRequirements`); the requirement lives on each `DriveToPose`. |
 | [UtilityOpMode.java](src/main/java/frc/robot/opmodes/UtilityOpMode.java) | `@Utility("Stow")` | Safe off-field pose (arm vertical, flywheel stopped). `@Utility` is the renamed 2027 "Test" mode. |
 
