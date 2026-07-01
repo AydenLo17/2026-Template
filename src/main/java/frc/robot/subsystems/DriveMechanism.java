@@ -32,12 +32,27 @@ public class DriveMechanism extends Mechanism {
   // is the project's logging surface - see Telemetry and the log-reading skill.
   private final Telemetry telemetry = new Telemetry();
 
+  // Team-owned pose estimator that fuses this drivetrain's odometry with vision (see RobotState).
+  // We keep the Phoenix estimator odometry-only and do the vision fusion here so it is fully
+  // visible in the log and tunable - the way 6328/254/2910 structure their code.
+  private final RobotState robotState = new RobotState();
+
   public DriveMechanism() {
     super("Drivetrain");
     // The drivetrain's perspective update used to live in periodic(); run it every loop.
     Scheduler.getDefault().addPeriodic(drivetrain::applyOperatorPerspective);
+    // Feed odometry into RobotState every loop, before vision runs (this periodic is registered
+    // before any Limelight periodic, so the odometry buffer is fresh when vision fuses).
+    Scheduler.getDefault().addPeriodic(this::updateRobotState);
     // CTRE calls this from the odometry thread every time a new state is produced (250 Hz on FD).
     drivetrain.registerTelemetry(telemetry::telemeterize);
+  }
+
+  /** Pushes the latest Phoenix odometry snapshot into the team pose estimator. */
+  private void updateRobotState() {
+    var state = drivetrain.getState();
+    robotState.addOdometryObservation(
+        state.Pose, state.Velocity.toFieldRelative(state.Pose.getRotation()), state.Timestamp);
   }
 
   /** Returns a command that continuously applies the supplied control request to the drivetrain. */
@@ -63,12 +78,20 @@ public class DriveMechanism extends Mechanism {
   }
 
   /**
-   * The robot's current field pose from odometry, in the blue-alliance-origin field frame (the
-   * Phoenix convention - the origin does not flip with alliance). Used by pose-following commands
-   * such as {@code DriveToPose} for feedback.
+   * The robot's current fused field pose (odometry + vision), in the blue-alliance-origin field
+   * frame (the Phoenix convention - the origin does not flip with alliance). Used by pose-following
+   * commands such as {@code DriveToPose} for feedback. See {@link RobotState}.
    */
   public Pose2d getPose() {
-    return drivetrain.getState().Pose;
+    return robotState.getEstimatedPose();
+  }
+
+  /**
+   * The robot's odometry-only field pose (no vision). Feed this to single-tag vision (MegaTag2),
+   * which needs a heading input that does not itself depend on vision, to avoid a feedback loop.
+   */
+  public Pose2d getOdometryPose() {
+    return robotState.getOdometryPose();
   }
 
   /**
@@ -79,7 +102,9 @@ public class DriveMechanism extends Mechanism {
    * position error and the follower would try to "correct" straight to the goal.
    */
   public void resetPose(Pose2d pose) {
+    // Reset the Phoenix odometry baseline AND the fused estimate so both agree on the new origin.
     drivetrain.resetPose(pose);
+    robotState.resetPose(pose);
   }
 
   /**
@@ -104,16 +129,16 @@ public class DriveMechanism extends Mechanism {
   }
 
   /**
-   * Fuses a vision pose estimate into the drivetrain's Kalman filter. Exposed so the {@link
+   * Fuses a vision pose estimate into the team {@link RobotState} estimator. Exposed so the {@link
    * frc.robot.subsystems.vision.Limelight} pose estimator can correct odometry without direct
-   * access to the Phoenix swerve object.
+   * access to the estimator or the Phoenix swerve object.
    *
-   * <p><b>Timebase:</b> the Phoenix pose estimator stamps its odometry buffer with {@code
-   * Utils.getCurrentTimeSeconds()}, so {@code timestampSeconds} must be in that same epoch.
-   * Limelight reports timestamps in the WPILib timebase ({@code Timer.getTimestamp()}); the {@code
-   * Limelight} subsystem converts before calling this. (Phoenix 6 dropped {@code
-   * Utils.fpgaToCurrentTime} in the 2027 line, so the conversion is done by sampling the offset
-   * there.)
+   * <p><b>Timebase:</b> {@link RobotState} keys its odometry buffer with {@code
+   * Utils.getCurrentTimeSeconds()} (the drivetrain state timestamp), so {@code timestampSeconds}
+   * must be in that same epoch. Limelight reports timestamps in the WPILib timebase ({@code
+   * Timer.getTimestamp()}); the {@code Limelight} subsystem converts before calling this. (Phoenix
+   * 6 dropped {@code Utils.fpgaToCurrentTime} in the 2027 line, so the conversion is done by
+   * sampling the offset there.)
    *
    * @param visionRobotPose the robot pose measured by vision, blue-alliance-origin
    * @param timestampSeconds measurement timestamp in the {@code Utils.getCurrentTimeSeconds()}
@@ -122,6 +147,8 @@ public class DriveMechanism extends Mechanism {
    */
   public void addVisionMeasurement(
       Pose2d visionRobotPose, double timestampSeconds, Matrix<N3, N1> stdDevs) {
-    drivetrain.addVisionMeasurement(visionRobotPose, timestampSeconds, stdDevs);
+    // Fuse in RobotState (not the Phoenix estimator) so the Phoenix pose stays odometry-only and
+    // the correction is not double-counted when RobotState reads that pose back as odometry.
+    robotState.addVisionObservation(visionRobotPose, timestampSeconds, stdDevs);
   }
 }

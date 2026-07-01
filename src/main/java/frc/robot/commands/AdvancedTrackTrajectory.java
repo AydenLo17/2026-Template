@@ -14,6 +14,10 @@ import frc.robot.utils.CustomTrajectoryEngine;
 import org.wpilib.math.controller.PIDController;
 import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.networktables.DoublePublisher;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.networktables.StructPublisher;
 
 /**
  * Follow a {@link CustomTrajectoryEngine} plan to a goal {@link Pose2d}, binding the engine's
@@ -59,12 +63,6 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
   // in initialize(); everything downstream (trim, traction filter, request) is identical.
   private final CustomTrajectoryEngine.Sample[] samples;
 
-  // Whether initialize() should seed odometry to the path's first sample. Only meaningful in
-  // playback mode. True for a standalone path (so the robot's believed pose lines up with where the
-  // path begins); false for the 2nd+ leg of a sequence, where the previous leg already left us at
-  // the right spot and re-seeding would erase real accumulated error.
-  private final boolean resetOdometryOnStart;
-
   // Position-trim feedback, one controller per field axis. These correct measured-vs-PLANNED drift;
   // the engine velocity is the feedforward that actually moves the robot. kP is (m/s) per meter of
   // error. Gains live in Constants so all tuning is in one place.
@@ -77,6 +75,32 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
 
   // Wall-clock time the command started; used to bound the post-profile settle window.
   private double startTime;
+
+  // Playback progress marker for position-based path tracking. In playback mode we keep this
+  // monotonic and search only forward from it, so the command cannot jump backward on the path.
+  private int playbackAnchorIndex;
+
+  // Trajectory-follow diagnostics for AdvantageScope/Glass + WPILOG post-analysis.
+  private final NetworkTable telemetryTable =
+      NetworkTableInstance.getDefault().getTable("Trajectory").getSubTable("AdvancedFollow");
+  private final StructPublisher<Pose2d> plannedPosePub =
+      telemetryTable.getStructTopic("PlannedPose", Pose2d.struct).publish();
+  private final StructPublisher<Pose2d> measuredPosePub =
+      telemetryTable.getStructTopic("MeasuredPose", Pose2d.struct).publish();
+  private final DoublePublisher errorXPub = telemetryTable.getDoubleTopic("ErrorX").publish();
+  private final DoublePublisher errorYPub = telemetryTable.getDoubleTopic("ErrorY").publish();
+  private final DoublePublisher errorNormPub =
+      telemetryTable.getDoubleTopic("ErrorNormMeters").publish();
+  private final DoublePublisher headingErrorPub =
+      telemetryTable.getDoubleTopic("HeadingErrorRad").publish();
+  private final DoublePublisher ffSpeedPub =
+      telemetryTable.getDoubleTopic("FeedforwardSpeedMps").publish();
+  private final DoublePublisher cmdSpeedPub =
+      telemetryTable.getDoubleTopic("CommandedSpeedMps").publish();
+  private final DoublePublisher progressPub =
+      telemetryTable.getDoubleTopic("PathProgress01").publish();
+  private final DoublePublisher lookaheadPub =
+      telemetryTable.getDoubleTopic("LookaheadMeters").publish();
 
   // Field-centric request that also closed-loop controls heading toward a target angle.
   // - DriveRequestType.Velocity: run the module drive motors on their onboard closed loop (with
@@ -104,7 +128,6 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
     this.drivetrain = drivetrain;
     this.goal = goal;
     this.samples = null;
-    this.resetOdometryOnStart = false;
   }
 
   /**
@@ -112,29 +135,10 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
    * Choreo}). The engine plays the samples back as the feedforward; the position trim and traction
    * filter behave exactly as in the goal-pose mode. The termination goal is the path's last sample.
    *
-   * <p>Odometry is seeded to the path's first sample on start (see the {@code resetOdometryOnStart}
-   * overload to opt out - e.g. for a mid-sequence leg).
-   *
    * @param drivetrain the swerve drive to command
    * @param path the ordered trajectory samples (blue-origin), must be non-empty
    */
   public AdvancedTrackTrajectory(DriveMechanism drivetrain, CustomTrajectoryEngine.Sample[] path) {
-    this(drivetrain, path, true);
-  }
-
-  /**
-   * Follow a precomputed path, choosing whether to seed odometry to the path's first sample on
-   * start. Use {@code false} for the 2nd+ leg of a multi-path sequence, where the robot is already
-   * at the leg's start and re-seeding would discard real tracking error.
-   *
-   * @param drivetrain the swerve drive to command
-   * @param path the ordered trajectory samples (blue-origin), must be non-empty
-   * @param resetOdometryOnStart seed odometry to {@code path[0]} in {@code initialize()}
-   */
-  public AdvancedTrackTrajectory(
-      DriveMechanism drivetrain,
-      CustomTrajectoryEngine.Sample[] path,
-      boolean resetOdometryOnStart) {
     super("AdvancedTrackTrajectory", drivetrain); // name + requirement
     if (path == null || path.length == 0) {
       throw new IllegalArgumentException("AdvancedTrackTrajectory path must be non-empty");
@@ -142,7 +146,6 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
     this.drivetrain = drivetrain;
     this.samples = path;
     this.goal = path[path.length - 1].pose(); // final waypoint - used by the at-goal termination
-    this.resetOdometryOnStart = resetOdometryOnStart;
   }
 
   /**
@@ -152,13 +155,10 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
   @Override
   protected void initialize() {
     startTime = Utils.getCurrentTimeSeconds();
+    playbackAnchorIndex = 0;
     if (samples != null) {
-      // Seed odometry to the path's start so the follower begins aligned with the plan. Without
-      // this a path starting away from the robot's current pose reads as a large disturbance and
-      // the engine re-plans straight to the goal, skipping the intermediate waypoints.
-      if (resetOdometryOnStart) {
-        drivetrain.resetPose(samples[0].pose());
-      }
+      // Path followers no longer reset odometry themselves. Autonomous wiring is responsible for
+      // one reset at auto start so teleop on-the-fly path usage cannot accidentally reseed pose.
       engine.loadSamples(samples, startTime);
     } else {
       engine.generate(drivetrain.getPose(), drivetrain.getFieldVelocity(), goal, startTime);
@@ -171,18 +171,29 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
   @Override
   protected void execute() {
     double now = Utils.getCurrentTimeSeconds();
-
-    // Recover from any big hit/shove first: if we've been knocked off the plan, re-anchor the
-    // trajectory to where we actually are before sampling.
-    engine.handleDisturbance(drivetrain.getPose(), drivetrain.getFieldVelocity(), now);
-
-    // The planned feedforward at this instant (field-relative).
-    CustomTrajectoryEngine.TrajectoryState setpoint = engine.sample(now);
     Pose2d measured = drivetrain.getPose();
+
+    // Generate-mode: recover from disturbances and sample by wall-clock time.
+    // Playback-mode: use position-based progression (nearest + lookahead) for robustness at high
+    // speed; this avoids a pure time-index chase when the robot is briefly ahead/behind schedule.
+    CustomTrajectoryEngine.TrajectoryState setpoint;
+    if (samples != null) {
+      setpoint = samplePlaybackByPosition(now, measured);
+    } else {
+      // Recover from any big hit/shove first: if we've been knocked off the plan, re-anchor the
+      // trajectory to where we actually are before sampling.
+      engine.handleDisturbance(measured, drivetrain.getFieldVelocity(), now);
+      // The planned feedforward at this instant (field-relative).
+      setpoint = engine.sample(now);
+    }
 
     // Position trim: PID on the error between where the profile says we should be RIGHT NOW and
     // where odometry says we are. This is what kills the integration drift - it's added to the
     // feedforward so the wheels both follow the profile AND get pulled back onto the planned point.
+    double errorX = setpoint.targetPose.getX() - measured.getX();
+    double errorY = setpoint.targetPose.getY() - measured.getY();
+    double headingError = setpoint.targetHeading.minus(measured.getRotation()).getRadians();
+
     double fbX = xController.calculate(measured.getX(), setpoint.targetPose.getX());
     double fbY = yController.calculate(measured.getY(), setpoint.targetPose.getY());
 
@@ -205,6 +216,21 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
     ChassisVelocities safe =
         samples != null ? commanded : drivetrain.applyTractionFilter(commanded);
 
+    // Log where we told the robot to be versus where it actually is, plus command/error traces.
+    plannedPosePub.set(setpoint.targetPose);
+    measuredPosePub.set(measured);
+    errorXPub.set(errorX);
+    errorYPub.set(errorY);
+    errorNormPub.set(Math.hypot(errorX, errorY));
+    headingErrorPub.set(headingError);
+    ffSpeedPub.set(Math.hypot(setpoint.targetVx, setpoint.targetVy));
+    cmdSpeedPub.set(Math.hypot(safe.vx, safe.vy));
+    if (samples != null && samples.length > 1) {
+      progressPub.set((double) playbackAnchorIndex / (samples.length - 1));
+    } else {
+      progressPub.set(0.0);
+    }
+
     drivetrain.setControl(
         driveRequest
             .withVelocityX(safe.vx)
@@ -224,7 +250,9 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
   @Override
   protected boolean isFinished() {
     double now = Utils.getCurrentTimeSeconds();
-    if (!engine.isFinished(now)) {
+    boolean profileComplete =
+        samples != null ? playbackAnchorIndex >= (samples.length - 1) : engine.isFinished(now);
+    if (!profileComplete) {
       return false;
     }
 
@@ -246,5 +274,82 @@ public class AdvancedTrackTrajectory extends ClassicCommand {
   @Override
   protected void end(boolean interrupted) {
     drivetrain.setControl(new SwerveRequest.Idle());
+  }
+
+  // --- position-based playback helpers ----------------------------------------------------------
+
+  private CustomTrajectoryEngine.TrajectoryState samplePlaybackByPosition(
+      double now, Pose2d measured) {
+    int nearest = nearestSampleIndex(measured);
+    playbackAnchorIndex = Math.max(playbackAnchorIndex, nearest);
+
+    // Speed-based lookahead gives stable high-speed tracking without giving up low-speed precision.
+    double speed = Math.hypot(drivetrain.getFieldVelocity().vx, drivetrain.getFieldVelocity().vy);
+    double lookaheadMeters =
+        clamp(
+            Constants.Trajectory.kPlaybackLookaheadMin
+                + speed * Constants.Trajectory.kPlaybackLookaheadSpeedGain,
+            Constants.Trajectory.kPlaybackLookaheadMin,
+            Constants.Trajectory.kPlaybackLookaheadMax);
+    lookaheadPub.set(lookaheadMeters);
+
+    int lookaheadIndex = advanceByDistance(playbackAnchorIndex, lookaheadMeters);
+    CustomTrajectoryEngine.TrajectoryState lookahead = stateAtIndex(lookaheadIndex);
+
+    // Use the lookahead sample's feedforward (velocity/accel) so motion stays on the planned
+    // dynamics, but command toward the lookahead pose for stronger geometric path lock.
+    return new CustomTrajectoryEngine.TrajectoryState(
+        lookahead.targetPose,
+        lookahead.targetVx,
+        lookahead.targetVy,
+        lookahead.targetHeading,
+        lookahead.targetOmega,
+        lookahead.ax,
+        lookahead.ay,
+        lookahead.alpha);
+  }
+
+  private int nearestSampleIndex(Pose2d measured) {
+    int start = playbackAnchorIndex;
+    int end =
+        Math.min(
+            samples.length - 1,
+            playbackAnchorIndex + Constants.Trajectory.kPlaybackNearestSearchWindow);
+    int best = start;
+    double bestDistSq = Double.POSITIVE_INFINITY;
+    for (int i = start; i <= end; i++) {
+      Pose2d p = samples[i].pose();
+      double dx = p.getX() - measured.getX();
+      double dy = p.getY() - measured.getY();
+      double d2 = dx * dx + dy * dy;
+      if (d2 < bestDistSq) {
+        bestDistSq = d2;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  private int advanceByDistance(int fromIndex, double distanceMeters) {
+    int i = fromIndex;
+    double remaining = distanceMeters;
+    while (i < samples.length - 1 && remaining > 0.0) {
+      Pose2d a = samples[i].pose();
+      Pose2d b = samples[i + 1].pose();
+      double seg = a.getTranslation().getDistance(b.getTranslation());
+      remaining -= seg;
+      i++;
+    }
+    return i;
+  }
+
+  private CustomTrajectoryEngine.TrajectoryState stateAtIndex(int i) {
+    CustomTrajectoryEngine.Sample s = samples[i];
+    return new CustomTrajectoryEngine.TrajectoryState(
+        s.pose(), s.vx(), s.vy(), s.pose().getRotation(), s.omega(), s.ax(), s.ay(), s.alpha());
+  }
+
+  private static double clamp(double value, double min, double max) {
+    return Math.max(min, Math.min(max, value));
   }
 }
