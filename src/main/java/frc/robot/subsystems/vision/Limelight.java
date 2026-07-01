@@ -33,8 +33,7 @@ import org.wpilib.networktables.StringPublisher;
  * {@code NT:/Vision/<camera>/*}.
  */
 public class Limelight {
-  // Limelight 3 FOV scaling used to convert txnc/tync degrees into normalized
-  // crop center.
+  // Limelight 3 FOV scaling used to convert txnc/tync degrees into normalized crop center.
   // Keep internal to avoid overloading the public tuning surface.
   private static final double kTxDegreesForFullScale = 29.8;
   private static final double kTyDegreesForFullScale = 24.85;
@@ -117,10 +116,8 @@ public class Limelight {
   private void update() {
     accepted.set(0.0);
 
-    // Feed the camera our heading for MegaTag2. Use the odometry-only heading (not
-    // the fused pose)
-    // so single-tag vision never depends on a heading that vision itself corrected
-    // - that would be
+    // Feed the camera our heading for MegaTag2. Use the odometry-only heading (not the fused pose)
+    // so single-tag vision never depends on a heading that vision itself corrected - that would be
     // a feedback loop. NoFlush: Robot flushes once for all cameras.
     double headingDegrees = drivetrain.getOdometryPose().getRotation().getDegrees();
     LimelightHelpers.SetRobotOrientation_NoFlush(name, headingDegrees, 0, 0, 0, 0, 0);
