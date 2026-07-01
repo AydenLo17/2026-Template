@@ -243,6 +243,33 @@ public final class Constants {
      * anything well outside is an outlier that would yank the estimate off the field.
      */
     public static final double kFieldBoundaryMarginMeters = 0.5;
+
+    /**
+     * Distance (m) where crop starts "wide" (almost full frame). Closer than this keeps a large
+     * view so tag reacquisition is easy.
+     */
+    public static final double kCropNearDistanceMeters = 1.5;
+
+    /**
+     * Distance (m) where crop reaches its tightest size. Farther than this stays at the same tight
+     * crop to maximize FPS / lower latency.
+     */
+    public static final double kCropFarDistanceMeters = 5.0;
+
+    /**
+     * Crop half-size near the target in normalized Limelight crop space [-1, 1]. Bigger = less
+     * crop, safer reacquisition, lower max FPS benefit.
+     */
+    public static final double kCropWindowHalfSizeNear = 0.95;
+
+    /**
+     * Crop half-size far from the target. Smaller = tighter crop, better FPS/latency, but easier to
+     * lose the target if centering is imperfect.
+     */
+    public static final double kCropWindowHalfSizeFar = 0.32;
+
+    /** Minimum absolute change required before pushing a new crop window over NT. */
+    public static final double kCropApplyDeadband = 0.02;
   }
 
   /**
