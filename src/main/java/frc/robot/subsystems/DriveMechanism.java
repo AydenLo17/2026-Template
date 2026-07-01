@@ -72,6 +72,17 @@ public class DriveMechanism extends Mechanism {
   }
 
   /**
+   * Teleports the odometry estimate to {@code pose} (blue-alliance-origin field frame). This does
+   * not move the robot - it redefines where odometry thinks the robot currently is. Autonomous
+   * routines call this at the start so the robot's believed pose matches the trajectory's first
+   * point; without it a path that starts far from the robot's current pose would look like a huge
+   * position error and the follower would try to "correct" straight to the goal.
+   */
+  public void resetPose(Pose2d pose) {
+    drivetrain.resetPose(pose);
+  }
+
+  /**
    * The robot's current field-relative velocity from odometry. The drivetrain reports a
    * robot-centric velocity; this rotates it into the field frame so it can seed a field-relative
    * profile (e.g. {@code LinearPath}).
@@ -79,6 +90,17 @@ public class DriveMechanism extends Mechanism {
   public ChassisVelocities getFieldVelocity() {
     var state = drivetrain.getState();
     return state.Velocity.toFieldRelative(state.Pose.getRotation());
+  }
+
+  /**
+   * Runs a requested field-relative velocity through the drivetrain's physics-based traction
+   * limiter, capping translational acceleration at the friction circle so the wheels don't slip.
+   * Exposed so a follow command (e.g. {@code AdvancedTrackTrajectory}) can protect its trajectory
+   * feedforward without direct access to the Phoenix swerve object. See {@link
+   * CommandSwerveDrivetrain#applyTractionFilter}.
+   */
+  public ChassisVelocities applyTractionFilter(ChassisVelocities targetSpeeds) {
+    return drivetrain.applyTractionFilter(targetSpeeds);
   }
 
   /**
