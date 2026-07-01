@@ -126,5 +126,152 @@ public final class Constants {
      * never return true.
      */
     public static final double kSettleTimeout = 1.0;
+
+    // --- Position-based Choreo playback (robust at high speed) --------------------------------
+
+    /**
+     * Minimum lookahead distance (meters) for position-based Choreo tracking. Small values hug the
+     * path tightly; too small can make the command twitchy when odometry is noisy.
+     */
+    public static final double kPlaybackLookaheadMin = 0.08;
+
+    /**
+     * Maximum lookahead distance (meters). Higher values smooth high-speed tracking but can cut
+     * corners if set excessively large.
+     */
+    public static final double kPlaybackLookaheadMax = 0.35;
+
+    /**
+     * Speed-to-lookahead gain (seconds): lookahead = min + gain * speed. This makes lookahead grow
+     * with robot speed so fast segments stay stable while slow segments remain precise.
+     */
+    public static final double kPlaybackLookaheadSpeedGain = 0.04;
+
+    /**
+     * How many samples ahead of the previous nearest-point index to search each loop when locking
+     * to the path. Limiting search to a forward window keeps runtime cheap and enforces monotonic
+     * progress through the path.
+     */
+    public static final int kPlaybackNearestSearchWindow = 25;
+  }
+
+  /**
+   * Vision fusion settings used by the Limelight-based pose estimator pipeline.
+   *
+   * <p>These tune two parts of the estimator behavior:
+   *
+   * <ol>
+   *   <li>Hard gates: reject obviously bad measurements (stale, too far, huge ambiguity, etc.)
+   *   <li>Soft trust shaping: accepted measurements get larger/smaller std-devs based on quality
+   * </ol>
+   */
+  public static final class Vision {
+    private Vision() {}
+
+    /** Base XY trust coefficient in the distance/tag-count model. */
+    public static final double kXYStdDevCoefficient = 0.333;
+
+    /** Base heading trust coefficient for MegaTag1 (2+ tags). */
+    public static final double kHeadingStdDevCoefficient = 1.5;
+
+    /** Effectively disables vision heading (used for MegaTag2/single-tag). */
+    public static final double kIgnoreVisionHeadingStdDev = 9_999_999;
+
+    /** Reject vision if average tag distance exceeds this (meters). */
+    public static final double kMaxTagDistanceMeters = 4.0;
+
+    /** Reject vision if reported latency exceeds this (milliseconds). */
+    public static final double kMaxLatencyMs = 120.0;
+
+    /** Reject vision if measurement age now - timestamp exceeds this (seconds). */
+    public static final double kMaxMeasurementAgeSec = 0.20;
+
+    /** Reject single-tag updates if fiducial ambiguity exceeds this. */
+    public static final double kMaxSingleTagAmbiguity = 0.20;
+
+    /** Reject updates with too little observed tag area (camera far away / noisy). */
+    public static final double kMinAvgTagArea = 0.05;
+
+    /** Outlier gate for multi-tag measurements vs current odometry pose (meters). */
+    public static final double kMaxPoseJumpMetersMultiTag = 2.5;
+
+    /** Outlier gate for single-tag measurements vs current odometry pose (meters). */
+    public static final double kMaxPoseJumpMetersSingleTag = 1.2;
+
+    /** Speed inflation gain for XY std-dev: std *= (1 + gain * speed[m/s]). */
+    public static final double kVelocityStdDevInflationGain = 0.12;
+
+    /** Ambiguity inflation gain: std *= (1 + gain * ambiguity). */
+    public static final double kAmbiguityStdDevInflationGain = 1.5;
+
+    /**
+     * Low-area inflation gain. As avg tag area drops below 1.0, trust is reduced by this factor.
+     */
+    public static final double kLowAreaStdDevInflationGain = 1.25;
+
+    /** Pose-correction inflation gain: std *= (1 + gain * odom-vs-vision error[m]). */
+    public static final double kCorrectionStdDevInflationGain = 0.25;
+
+    /**
+     * Reject vision while the chassis is yawing faster than this (rad/s). During a fast spin the
+     * camera-to-robot time sync is unreliable and a stale frame lands at a very different heading,
+     * so a single-tag solve can be wildly wrong. Team 254 gates on this; we use the current yaw
+     * rate as a simple, effective proxy for "was I spinning when this frame was captured".
+     */
+    public static final double kMaxAngularSpeedForVision = 4.0;
+
+    /**
+     * Reject any vision pose whose translation is within this many meters of the field origin (0,
+     * 0). A near-origin solve is the classic signature of a bad/empty read, not a real measurement.
+     * (254's {@code kDefaultNormThreshold}.)
+     */
+    public static final double kMinPoseNormMeters = 0.10;
+
+    /**
+     * Field size used only for the off-field reject gate below. TODO: set to the real 2026 game
+     * field dimensions once known (these are the 2025 Reefscape field as a placeholder). See the
+     * {@code game-info} skill.
+     */
+    public static final double kFieldLengthMeters = 17.55;
+
+    /** Field width for the off-field reject gate. TODO: set to the real 2026 field. */
+    public static final double kFieldWidthMeters = 8.05;
+
+    /**
+     * Reject any vision pose that lands more than this far outside the field rectangle. A real
+     * measurement is always on the field (plus a small margin for the robot's own footprint);
+     * anything well outside is an outlier that would yank the estimate off the field.
+     */
+    public static final double kFieldBoundaryMarginMeters = 0.5;
+  }
+
+  /**
+   * Tuning for the {@link frc.robot.subsystems.RobotState} pose estimator - the team-owned fusion
+   * layer that blends wheel/gyro odometry with vision using a time-interpolated buffer and a
+   * steady-state Kalman gain (the same rewind/fuse/forward idea Teams 6328/254/2910 use). These
+   * values describe how much to <i>trust odometry</i> between vision corrections; vision trust
+   * comes from {@link Vision} (per-measurement std-devs).
+   */
+  public static final class Estimator {
+    private Estimator() {}
+
+    /**
+     * How much odometry history to keep for latency compensation (seconds). Must comfortably exceed
+     * the worst-case vision latency so a delayed measurement can still be replayed against where
+     * the robot actually was when the frame was captured.
+     */
+    public static final double kPoseBufferSizeSeconds = 2.0;
+
+    /**
+     * Odometry translational trust as a standard deviation (meters of drift accumulated per fusion
+     * step). Smaller => the estimate leans harder on wheels/gyro and vision nudges it more gently.
+     */
+    public static final double kOdometryStdDevMeters = 0.003;
+
+    /**
+     * Odometry heading trust as a standard deviation (radians). The gyro is very good, so this is
+     * small; increase it if you want vision (MegaTag1) to pull heading harder.
+     */
+    public static final double kOdometryStdDevRadians = 0.002;
   }
 }

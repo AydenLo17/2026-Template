@@ -39,7 +39,13 @@ public final class Autos {
    * @return a command that follows the path and finishes at its last sample
    */
   public static Command choreoPath(DriveMechanism drivetrain, String pathName) {
-    return new AdvancedTrackTrajectory(drivetrain, ChoreoTrajectory.load(pathName));
+    var path = ChoreoTrajectory.load(pathName);
+    return Command.sequence(
+            Command.requiring(drivetrain)
+                .executing(coroutine -> drivetrain.resetPose(path[0].pose()))
+                .named("Reset Auto Pose"),
+            new AdvancedTrackTrajectory(drivetrain, path))
+        .named("Choreo Path");
   }
 
   /**
@@ -52,16 +58,24 @@ public final class Autos {
    * @return a sequential command running every path
    */
   public static Command choreoSequence(DriveMechanism drivetrain, String... pathNames) {
-    Command[] legs = new Command[pathNames.length];
-    for (int i = 0; i < pathNames.length; i++) {
-      // Only the first leg seeds odometry to its start pose; later legs continue from where the
-      // previous one left off, so re-seeding them would throw away real tracking error.
-      boolean resetOdometry = (i == 0);
-      legs[i] =
-          new AdvancedTrackTrajectory(
-              drivetrain, ChoreoTrajectory.load(pathNames[i]), resetOdometry);
+    if (pathNames.length == 0) {
+      return Command.noRequirements(coroutine -> {}).named("Choreo Sequence");
     }
-    return Command.sequence(legs).named("Choreo Sequence");
+
+    var loadedPaths = new frc.robot.utils.CustomTrajectoryEngine.Sample[pathNames.length][];
+    for (int i = 0; i < pathNames.length; i++) {
+      loadedPaths[i] = ChoreoTrajectory.load(pathNames[i]);
+    }
+
+    Command[] auto = new Command[pathNames.length + 1];
+    auto[0] =
+        Command.requiring(drivetrain)
+            .executing(coroutine -> drivetrain.resetPose(loadedPaths[0][0].pose()))
+            .named("Reset Auto Pose");
+    for (int i = 0; i < pathNames.length; i++) {
+      auto[i + 1] = new AdvancedTrackTrajectory(drivetrain, loadedPaths[i]);
+    }
+    return Command.sequence(auto).named("Choreo Sequence");
   }
 
   /**

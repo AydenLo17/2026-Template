@@ -56,7 +56,9 @@ Main files:
 
 Every loop during follow:
 
-1. Sample trajectory state at current time.
+1. Choose trajectory setpoint source:
+    - generated mode: sample by time
+    - Choreo playback mode: sample by position (nearest-on-path + lookahead)
 2. Measure robot pose from odometry.
 3. Compute position-trim PID on X and Y using planned pose as setpoint.
 4. Add trim to trajectory feedforward velocity.
@@ -108,6 +110,14 @@ Translation and heading are intentionally separated:
 3. Runtime loader parses `trajectory.samples[]`.
 4. `AdvancedTrackTrajectory` consumes samples in playback mode.
 
+Playback progression is position-anchored, not purely clock-anchored:
+
+- find nearest sample index to current measured pose (forward window only)
+- compute speed-based lookahead distance
+- target a lookahead sample pose/heading while using that sample's planned feedforward
+
+This makes the robot far less sensitive to temporary time lag/lead at high speed.
+
 Fields used per sample:
 
 - `t, x, y, heading`
@@ -126,6 +136,37 @@ Why this is necessary:
 - Disturbance logic can then regenerate a straight-to-goal path and skip intended waypoints.
 
 In multi-leg sequences, only the first leg reseeds.
+
+## Time-Based vs Position-Based Tracking
+
+You asked whether position-based is possible and better. It is, and it is now implemented for Choreo playback.
+
+Why pure time-based can break at high speed:
+
+- if the robot is slightly behind schedule, the controller keeps chasing future points
+- this can increase cross-track error, corner-cutting, and end overshoot
+
+Why position-based playback helps:
+
+- progression follows where the robot is on the path geometry
+- lookahead keeps it stable at speed
+- nearest-point anchor prevents jumping backward on path index
+
+This is the right direction when "speed is key" in auto.
+
+Current tuning constants for this mode are in `Constants.Trajectory`:
+
+- `kPlaybackLookaheadMin`
+- `kPlaybackLookaheadMax`
+- `kPlaybackLookaheadSpeedGain`
+- `kPlaybackNearestSearchWindow`
+
+Recent sim results with tuned lookahead:
+
+- midpoint closest approach: ~3.4 cm
+- final goal error: ~0.4 cm
+
+These numbers indicate strong geometric adherence while still converging tightly at the end.
 
 ## Why This Design Is Good
 
