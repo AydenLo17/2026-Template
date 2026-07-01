@@ -3,11 +3,13 @@ package frc.robot.subsystems;
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
+import frc.robot.Constants;
 import frc.robot.generated.TunerConstants.TunerSwerveDrivetrain;
 import org.wpilib.driverstation.Alliance;
 import org.wpilib.driverstation.MatchState;
 import org.wpilib.driverstation.RobotState;
 import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 import org.wpilib.system.Notifier;
 import org.wpilib.system.RobotController;
 
@@ -74,6 +76,71 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain {
                 hasAppliedOperatorPerspective = true;
               });
     }
+  }
+
+  /**
+   * Proportional traction (anti-slip) limiter for a requested field-relative velocity command.
+   *
+   * <p><b>The physics.</b> A drive wheel can only push on the carpet up to the friction limit. The
+   * most acceleration the robot can produce without the tires breaking loose is the friction circle
+   * radius:
+   *
+   * <pre>a_max = mu * g</pre>
+   *
+   * where {@code mu} is the wheel-on-carpet coefficient of friction ({@link
+   * Constants.Traction#kWheelCoF}) and {@code g} is gravity. Command more than that during a
+   * violent direction change or a defensive hit and the wheels slip - you lose grip, control, and
+   * odometry.
+   *
+   * <p><b>What this does.</b> Treat the difference between where we're going ({@code targetSpeeds})
+   * and where we are ({@code getState().Velocity}) as a velocity step that must happen in one loop
+   * ({@code dt = 20 ms}). That step implies a translational acceleration vector {@code a =
+   * (dv/dt)}. If its magnitude {@code sqrt(ax^2 + ay^2)} exceeds {@code a_max}, we scale the
+   * acceleration vector back to the edge of the friction circle - keeping its DIRECTION - and apply
+   * only that much change this loop. The result rides the traction limit instead of blowing past
+   * it.
+   *
+   * <p><b>Heading is preserved.</b> Only the translational components {@code vx, vy} are scaled;
+   * the requested rotational rate {@code omega} passes through untouched, so the limiter never
+   * sacrifices heading authority to save translation grip.
+   *
+   * <p>The {@code targetSpeeds} must be <b>field-relative</b> (the same frame a field-centric
+   * request consumes). The measured velocity from the state is robot-relative, so we rotate it into
+   * the field frame first to compute the step in a consistent frame.
+   *
+   * @param targetSpeeds the desired field-relative chassis velocity ({@code vx, vy} m/s, {@code
+   *     omega} rad/s)
+   * @return a field-relative velocity that respects the friction circle, with {@code omega}
+   *     unchanged
+   */
+  public ChassisVelocities applyTractionFilter(ChassisVelocities targetSpeeds) {
+    final double dt = Constants.Traction.kLoopPeriod;
+    final double aMax = Constants.Traction.kMaxTranslationAccel; // = mu * g
+
+    // Measured velocity is robot-relative in the state; rotate it into the field frame so the
+    // requested-minus-actual subtraction below happens in one consistent (field) frame.
+    ChassisVelocities current = getState().Velocity.toFieldRelative(getState().Pose.getRotation());
+
+    // Required translational acceleration to reach the target in one loop: a = (v_target -
+    // v_now)/dt.
+    double ax = (targetSpeeds.vx - current.vx) / dt;
+    double ay = (targetSpeeds.vy - current.vy) / dt;
+    double aMag = Math.hypot(ax, ay);
+
+    // Inside the friction circle (or no change requested): the command is already achievable.
+    if (aMag <= aMax || aMag == 0.0) {
+      return targetSpeeds;
+    }
+
+    // Outside the circle: keep the acceleration DIRECTION, shrink its MAGNITUDE to exactly a_max.
+    // scale < 1, so we only apply (scale) of the requested velocity step this loop - the velocity
+    // that actually lands on the friction-circle boundary.
+    double scale = aMax / aMag;
+    double vx = current.vx + (targetSpeeds.vx - current.vx) * scale;
+    double vy = current.vy + (targetSpeeds.vy - current.vy) * scale;
+
+    // omega is intentionally untouched - heading control is never traded away for translation grip.
+    return new ChassisVelocities(vx, vy, targetSpeeds.omega);
   }
 
   private void startSimThread() {
