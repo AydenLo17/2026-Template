@@ -1,4 +1,4 @@
-# 2026-Template (`2027-dev` branch)
+# 2027-Template
 
 Hemlock 5712's robot-code template for the WPILib **2027 alpha** stack:
 
@@ -9,15 +9,15 @@ Hemlock 5712's robot-code template for the WPILib **2027 alpha** stack:
 - Logging via **DataLogManager** + NetworkTables publishing (no AdvantageKit)
 - Autonomous with CTRE `DriveToPose` / `LinearPath` (no PathPlanner)
 
-> The `main` branch is the older 2026-season template. All 2027 work happens on `2027-dev`.
+> `2027-dev` is the default branch. The `main` branch is the older 2026-season template.
 
 ## Getting started
 
 1. Install the [WPILib 2027 alpha](https://github.com/wpilibsuite/allwpilib/releases) tools (includes JDK 25).
-2. Clone this repo and check out `2027-dev`:
+2. Clone this repo:
 
    ```bash
-   git clone -b 2027-dev https://github.com/Hemlock5712/2026-Template
+   git clone https://github.com/Hemlock5712/2027-Template
    ```
 
 3. Set your team number in `.wpilib/wpilib_preferences.json`.
