@@ -17,20 +17,13 @@ import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.networktables.StringPublisher;
 
 /**
- * One Limelight camera that feeds AprilTag pose guesses into the drivetrain's
- * pose estimator. Call
- * {@link #registerAll} once from {@link frc.robot.Robot} to wire up every
- * camera.
+ * One Limelight camera that feeds AprilTag pose guesses into the drivetrain's pose estimator. Call
+ * {@link #registerAll} once from {@link frc.robot.Robot} to wire up every camera.
  *
- * <p>
- * Uses MegaTag1 for 2+ tags (vision heading) and MegaTag2 for a lone tag (gyro
- * heading), so seed
- * the gyro or single-tag vision will be off. Accepted measurements are fused by
- * {@link
- * frc.robot.subsystems.RobotState} (via
- * {@code DriveMechanism.addVisionMeasurement}). Does nothing
- * in sim (no camera). Publishes per-camera diagnostics under
- * {@code NT:/Vision/<camera>/*}.
+ * <p>Uses MegaTag1 for 2+ tags (vision heading) and MegaTag2 for a lone tag (gyro heading), so seed
+ * the gyro or single-tag vision will be off. Accepted measurements are fused by {@link
+ * frc.robot.subsystems.RobotState} (via {@code DriveMechanism.addVisionMeasurement}). Does nothing
+ * in sim (no camera). Publishes per-camera diagnostics under {@code NT:/Vision/<camera>/*}.
  */
 public class Limelight {
   // Limelight 3 FOV scaling used to convert txnc/tync degrees into normalized crop center.
@@ -98,10 +91,8 @@ public class Limelight {
   }
 
   /**
-   * Creates one camera per name and registers them all on the scheduler - each
-   * camera's update
-   * every loop, then one shared flush. Names must match each camera's
-   * NetworkTables name.
+   * Creates one camera per name and registers them all on the scheduler - each camera's update
+   * every loop, then one shared flush. Names must match each camera's NetworkTables name.
    */
   public static void registerAll(DriveMechanism drivetrain, String... cameraNames) {
     for (String name : cameraNames) {
@@ -144,7 +135,8 @@ public class Limelight {
     ambiguity.set(worstAmbiguity);
 
     Pose2d currentPose = drivetrain.getPose();
-    double correctionJump = currentPose.getTranslation().getDistance(estimate.pose.getTranslation());
+    double correctionJump =
+        currentPose.getTranslation().getDistance(estimate.pose.getTranslation());
     poseJumpMeters.set(correctionJump);
 
     // Hard quality gates first - reject clearly bad measurements to prevent
@@ -179,9 +171,10 @@ public class Limelight {
       return;
     }
 
-    double jumpGate = estimate.tagCount >= 2
-        ? Constants.Vision.kMaxPoseJumpMetersMultiTag
-        : Constants.Vision.kMaxPoseJumpMetersSingleTag;
+    double jumpGate =
+        estimate.tagCount >= 2
+            ? Constants.Vision.kMaxPoseJumpMetersMultiTag
+            : Constants.Vision.kMaxPoseJumpMetersSingleTag;
     if (correctionJump > jumpGate) {
       status.set("reject:pose_jump");
       return;
@@ -231,14 +224,16 @@ public class Limelight {
     double speed = Math.hypot(drivetrain.getFieldVelocity().vx, drivetrain.getFieldVelocity().vy);
     xy *= (1.0 + Constants.Vision.kVelocityStdDevInflationGain * speed);
     xy *= (1.0 + Constants.Vision.kAmbiguityStdDevInflationGain * worstAmbiguity);
-    xy *= (1.0
-        + Constants.Vision.kLowAreaStdDevInflationGain
-            * Math.max(0.0, 1.0 - estimate.avgTagArea));
+    xy *=
+        (1.0
+            + Constants.Vision.kLowAreaStdDevInflationGain
+                * Math.max(0.0, 1.0 - estimate.avgTagArea));
     xy *= (1.0 + Constants.Vision.kCorrectionStdDevInflationGain * correctionJump);
 
-    double heading = estimate.isMegaTag2
-        ? Constants.Vision.kIgnoreVisionHeadingStdDev
-        : Constants.Vision.kHeadingStdDevCoefficient * distanceFactor / tagFactor;
+    double heading =
+        estimate.isMegaTag2
+            ? Constants.Vision.kIgnoreVisionHeadingStdDev
+            : Constants.Vision.kHeadingStdDevCoefficient * distanceFactor / tagFactor;
 
     xyStdDev.set(xy);
     thetaStdDev.set(heading);
@@ -266,11 +261,13 @@ public class Limelight {
 
     // Distance-based crop sizing: closer tags => wider crop, farther tags =>
     // tighter crop.
-    double t = normalize01(
-        estimate.avgTagDist,
-        Constants.Vision.kCropNearDistanceMeters,
-        Constants.Vision.kCropFarDistanceMeters);
-    double halfWindow = lerp(Constants.Vision.kCropWindowHalfSizeNear, Constants.Vision.kCropWindowHalfSizeFar, t);
+    double t =
+        normalize01(
+            estimate.avgTagDist,
+            Constants.Vision.kCropNearDistanceMeters,
+            Constants.Vision.kCropFarDistanceMeters);
+    double halfWindow =
+        lerp(Constants.Vision.kCropWindowHalfSizeNear, Constants.Vision.kCropWindowHalfSizeFar, t);
 
     LimelightHelpers.RawFiducial centerFiducial = selectBestFiducial(estimate);
     if (centerFiducial == null) {
