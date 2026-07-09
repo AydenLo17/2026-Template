@@ -189,3 +189,11 @@ compile_commands.json
 # Claude Code local tooling/config (but DO track shared skills so teammates get them)
 .claude/*
 !.claude/skills/
+
+# NVIDIA Isaac Sim: downloaded/unpacked locally for the AI tuning co-sim (huge; never commit).
+# See ISAAC_SIM_AUTOMATION.md. Point ISAAC_SIM_PYTHON at the built install's python launcher.
+IsaacSim-*/
+
+# Python caches from the tuning bridge / orchestrator scripts.
+__pycache__/
+*.pyc
