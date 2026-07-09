@@ -14,7 +14,6 @@ import frc.robot.Robot;
 import frc.robot.commands.Autos;
 import frc.robot.commands.DriveToPose;
 import frc.robot.commands.DriveToTag;
-import frc.robot.commands.VisionAutoAlign;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandFactory;
 import frc.robot.subsystems.DriveMechanism;
@@ -163,20 +162,6 @@ public final class OpModes {
   public static class ChoreoAuto extends CommandOpMode {
     public ChoreoAuto(Robot robot) {
       super(Autos.choreoPath(robot.drivetrain, "TestPath1"));
-    }
-  }
-
-  /**
-   * Headless AI-tuning target: rotate in place to a fixed heading using the {@link
-   * frc.robot.Constants.VisionAutoAlign} gains and report the alignment time. Run it with {@code
-   * ./gradlew simulateJavaAgent -Pmode=auto:"Vision Auto Align"}; the {@code
-   * run_ai_tuning_cycle.py} orchestrator drives this in a loop while it tunes the gains (see {@code
-   * ISAAC_SIM_AUTOMATION.md}).
-   */
-  @Autonomous(name = "Vision Auto Align")
-  public static class VisionAutoAlignAuto extends CommandOpMode {
-    public VisionAutoAlignAuto(Robot robot) {
-      super(new VisionAutoAlign(robot.drivetrain, 90.0));
     }
   }
 

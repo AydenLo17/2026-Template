@@ -55,15 +55,6 @@ public class DriveMechanism extends Mechanism {
         state.Pose, state.Velocity.toFieldRelative(state.Pose.getRotation()), state.Timestamp);
   }
 
-  /**
-   * The drivetrain's per-module <b>target</b> velocities (the commanded module setpoints) from the
-   * latest swerve state. Exposed so the simulation bridge can publish the commanded module speeds
-   * to NetworkTables each sim loop for the co-simulation / logging surface.
-   */
-  public org.wpilib.math.kinematics.SwerveModuleVelocity[] getModuleTargets() {
-    return drivetrain.getState().ModuleTargets;
-  }
-
   /** Returns a command that continuously applies the supplied control request to the drivetrain. */
   public Command applyRequest(Supplier<SwerveRequest> request) {
     return runRepeatedly(() -> drivetrain.setControl(request.get())).named("applyRequest");
