@@ -238,8 +238,14 @@ public class Limelight {
     xyStdDev.set(xy);
     thetaStdDev.set(heading);
 
+    // Latency compensation: treat the measurement as slightly older than its reported timestamp to
+    // account for capture-to-code delay the pipeline latency did not already include. The estimator
+    // then replays it against where the robot was at that earlier instant.
+    double compensatedTimestamp =
+        estimate.timestampSeconds - Constants.Tunable.kVisionLatencyCompensationSeconds;
+
     drivetrain.addVisionMeasurement(
-        estimate.pose, estimate.timestampSeconds, VecBuilder.fill(xy, xy, heading));
+        estimate.pose, compensatedTimestamp, VecBuilder.fill(xy, xy, heading));
     accepted.set(1.0);
     status.set(estimate.isMegaTag2 ? "accept:megatag2" : "accept:megatag1");
   }

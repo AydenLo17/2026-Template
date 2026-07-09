@@ -10,6 +10,7 @@ import frc.robot.subsystems.DriveMechanism;
 import frc.robot.subsystems.arm.Arm;
 import frc.robot.subsystems.flywheel.Flywheel;
 import frc.robot.subsystems.vision.Limelight;
+import frc.robot.utils.SimBridge;
 import frc.robot.utils.SimStartup;
 import org.wpilib.command3.Scheduler;
 import org.wpilib.command3.button.RobotModeTriggers;
@@ -36,6 +37,13 @@ public class Robot extends OpModeRobot {
   public final Flywheel flywheel = new Flywheel();
   public final CommandFactory superstructure = new CommandFactory(arm, flywheel);
 
+  /**
+   * Simulation-only NetworkTables bridge to an external physics engine (Isaac Sim). Ticked from
+   * {@link #simulationPeriodic()}; a no-op surface on the real robot. See {@link SimBridge} and
+   * {@code ISAAC_SIM_AUTOMATION.md}.
+   */
+  public final SimBridge simBridge = new SimBridge(drivetrain);
+
   public Robot() {
     // Start on-robot logging. There is no AdvantageKit in this template; the "logging-only" story
     // is DataLogManager - it records every NetworkTables value change (including everything
@@ -59,6 +67,14 @@ public class Robot extends OpModeRobot {
     // Headless auto-enable for agent / CI runs. No-op unless -Dfrc.sim.startMode is set (the
     // simulateJavaAgent Gradle task sets it). See SimStartup and the run-sim skill.
     SimStartup.arm();
+  }
+
+  @Override
+  public void simulationPeriodic() {
+    // Drive the co-simulation IO surface each sim loop: publish commanded module speeds to
+    // NetworkTables and read back the external engine's simulated sensor feedback (gyro yaw, intake
+    // contact). No-op when not connected to an external engine. See SimBridge.
+    simBridge.update();
   }
 
   @Override
