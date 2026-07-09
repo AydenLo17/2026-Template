@@ -12,6 +12,7 @@ code and explanations over cleverness.
   - `robot-description` — the code map: OpModes, subsystems, commands, where everything lives.
   - `game-info` — field frame, alliance flipping, AprilTag/vision conventions.
   - `run-sim` — running the robot in simulation (GUI and headless agent mode).
+  - `verify-ci` — local verification steps that mirror CI (build, test, headless sim smoke).
   - `log-reading` — finding and reading `.wpilog` / `.hoot` logs after a run.
   - `teaching` — **teacher mode** (see below).
 
