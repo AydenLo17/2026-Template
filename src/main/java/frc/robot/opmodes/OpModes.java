@@ -14,7 +14,6 @@ import frc.robot.commands.DriveToPose;
 import frc.robot.commands.DriveToTag;
 import frc.robot.commands.GamepieceAssistDrive;
 import frc.robot.generated.TunerConstants;
-import frc.robot.subsystems.CommandFactory;
 import frc.robot.subsystems.DriveMechanism;
 import org.wpilib.command3.Command;
 import org.wpilib.command3.Scheduler;
@@ -90,7 +89,6 @@ public final class OpModes {
 
     public DriverTeleop(Robot robot) {
       final DriveMechanism drivetrain = robot.drivetrain;
-      final CommandFactory superstructure = robot.superstructure;
 
       // X is forward and Y is left, per WPILib convention. While intaking, blend a smooth
       // gamepiece assist vector from camera detections into the driver's translation request.
@@ -108,15 +106,15 @@ public final class OpModes {
       driver.leftBumper().onTrue(drivetrain.seedFieldCentric());
 
       // Superstructure presets (arm + flywheel move together), held while the button is down.
-      driver.leftTrigger().whileTrue(superstructure.intake()); // pick up game piece
-      driver.rightBumper().whileTrue(superstructure.score()); // prepare to score
-      driver.rightTrigger().whileTrue(superstructure.stow()); // back to safe travel pose
+      driver.leftTrigger().whileTrue(robot.intake()); // pick up game piece
+      driver.rightBumper().whileTrue(robot.score()); // prepare to score
+      driver.rightTrigger().whileTrue(robot.stow()); // back to safe travel pose
 
       // Hold A: vision-only auto-align to the tag standoff.
       driver.a().whileTrue(new DriveToTag(drivetrain, ALIGN_CAMERA, ALIGN_TAG_ID));
 
       // Hold Y: auto-score prep - raise the arm and spin up the flywheel together.
-      driver.y().whileTrue(superstructure.autoScore()).whileFalse(robot.flywheel.stop());
+      driver.y().whileTrue(robot.autoScore()).whileFalse(robot.flywheel.stop());
     }
   }
 
@@ -167,7 +165,7 @@ public final class OpModes {
   @Utility(name = "Stow")
   public static class Stow extends CommandOpMode {
     public Stow(Robot robot) {
-      super(robot.superstructure.stow());
+      super(robot.stow());
     }
   }
 }
