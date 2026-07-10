@@ -300,6 +300,27 @@ public final class Constants {
      * small; increase it if you want vision (MegaTag1) to pull heading harder.
      */
     public static final double kOdometryStdDevRadians = 0.002;
+
+    /**
+     * Multiply odometry variance by this while collision/skid-like disturbance is active, so vision
+     * corrections pull harder.
+     */
+    public static final double kOdometryVarianceScaleWhenDisturbed = 4.0;
+
+    /** Translational acceleration spike threshold for collision-like events (m/s^2). */
+    public static final double kCollisionAccelThresholdMps2 = 7.0;
+
+    /** Speed floor before we evaluate skid-like heuristics (m/s). */
+    public static final double kSkidSpeedThresholdMps = 1.6;
+
+    /** Yaw-rate floor before we evaluate skid-like heuristics (rad/s). */
+    public static final double kSkidYawRateThresholdRadPerSec = 2.8;
+
+    /** Lateral acceleration threshold for skid-like events while turning (m/s^2). */
+    public static final double kSkidLateralAccelThresholdMps2 = 4.0;
+
+    /** Keep odometry de-weighted for this long after a disturbance (s). */
+    public static final double kDisturbanceHoldSeconds = 0.30;
   }
 
   /**

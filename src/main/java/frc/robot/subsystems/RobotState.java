@@ -60,6 +60,8 @@ public class RobotState {
   /** Odometry trust as variances [x, y, theta] (std-dev squared). Higher => vision pulls harder. */
   private final double[] qStdDevs = new double[3];
 
+  private double odometryVarianceScale = 1.0;
+
   /** Pure odometry pose (no vision). This is the input we blend vision into. */
   private Pose2d odometryPose = Pose2d.kZero;
 
@@ -86,6 +88,8 @@ public class RobotState {
       table.getDoubleTopic("AcceptedVisionCount").publish();
   private final DoublePublisher rejectedCountPub =
       table.getDoubleTopic("RejectedVisionCount").publish();
+  private final DoublePublisher odometryVarianceScalePub =
+      table.getDoubleTopic("OdometryVarianceScale").publish();
   private final DoublePublisher secondsSinceVisionPub =
       table.getDoubleTopic("SecondsSinceVision").publish();
 
@@ -174,9 +178,12 @@ public class RobotState {
 
     // Fuse: steady-state per-axis Kalman gain K = q / (q + sqrt(q * r)). Diagonal Q and R make the
     // full matrix form collapse to this scalar-per-axis expression (same result 6328/254 get).
-    double kx = kalmanGain(qStdDevs[0], visionStdDevs.get(0, 0));
-    double ky = kalmanGain(qStdDevs[1], visionStdDevs.get(1, 0));
-    double kTheta = kalmanGain(qStdDevs[2], visionStdDevs.get(2, 0));
+    double qx = qStdDevs[0] * odometryVarianceScale;
+    double qy = qStdDevs[1] * odometryVarianceScale;
+    double qTheta = qStdDevs[2] * odometryVarianceScale;
+    double kx = kalmanGain(qx, visionStdDevs.get(0, 0));
+    double ky = kalmanGain(qy, visionStdDevs.get(1, 0));
+    double kTheta = kalmanGain(qTheta, visionStdDevs.get(2, 0));
 
     Transform2d correction =
         new Transform2d(
@@ -208,6 +215,14 @@ public class RobotState {
     return fieldVelocity;
   }
 
+  /**
+   * Scales odometry variance used by vision fusion. Values greater than 1.0 reduce trust in
+   * odometry, so accepted vision pulls the estimate harder.
+   */
+  public void setOdometryVarianceScale(double scale) {
+    odometryVarianceScale = Math.max(1.0, scale);
+  }
+
   private static double kalmanGain(double q, double stdDev) {
     if (q == 0.0) {
       return 0.0;
@@ -223,6 +238,7 @@ public class RobotState {
         estimatedPose.getTranslation().getDistance(odometryPose.getTranslation()));
     acceptedCountPub.set(acceptedCount);
     rejectedCountPub.set(rejectedCount);
+    odometryVarianceScalePub.set(odometryVarianceScale);
     secondsSinceVisionPub.set(
         lastVisionTimestamp == 0 ? -1.0 : Utils.getCurrentTimeSeconds() - lastVisionTimestamp);
   }

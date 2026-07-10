@@ -15,13 +15,6 @@ This file tracks the reliability work that still belongs in the repo.
 - Encode piece possession, scoring prep, scoring release, bailout, and recovery as explicit states.
 - Make illegal transitions impossible in code instead of relying on driver timing.
 
-## Priority 3: Autonomous framework
-
-- Keep CTRE swerve as the drivetrain backend.
-- Add prematch auto validation: selected routine, starting pose, required path files, and mechanism readiness.
-- Add fallback branches when intake or score steps fail.
-- Add autonomous routines that overlap drive and mechanism actions intentionally instead of only sequencing them.
-
 ## Priority 4: Characterization and tuning
 
 - Add repeatable characterization commands for drive, arm, and flywheel.

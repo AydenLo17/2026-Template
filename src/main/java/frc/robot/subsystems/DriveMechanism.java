@@ -4,7 +4,9 @@
 
 package frc.robot.subsystems;
 
+import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveRequest;
+import frc.robot.Constants;
 import frc.robot.generated.TunerConstants;
 import frc.robot.utils.Telemetry;
 import java.util.function.Supplier;
@@ -16,6 +18,9 @@ import org.wpilib.math.kinematics.ChassisVelocities;
 import org.wpilib.math.linalg.Matrix;
 import org.wpilib.math.numbers.N1;
 import org.wpilib.math.numbers.N3;
+import org.wpilib.networktables.DoublePublisher;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
 
 /**
  * Command-based wrapper around {@link CommandSwerveDrivetrain}. The drivetrain already extends the
@@ -37,6 +42,19 @@ public class DriveMechanism extends Mechanism {
   // visible in the log and tunable - the way 6328/254/2910 structure their code.
   private final RobotState robotState = new RobotState();
 
+  // Disturbance detection (collision/skid-like heuristics) used to de-weight odometry temporarily,
+  // matching the "trust tags more when disturbed" strategy top teams use.
+  private ChassisVelocities lastFieldVelocity = new ChassisVelocities();
+  private double lastVelocityTimestamp = Double.NaN;
+  private double disturbanceUntilTimestamp = Double.NEGATIVE_INFINITY;
+
+  private final NetworkTable estimatorTable =
+      NetworkTableInstance.getDefault().getTable("RobotState").getSubTable("Disturbance");
+  private final DoublePublisher accelMps2Pub = estimatorTable.getDoubleTopic("AccelMps2").publish();
+  private final DoublePublisher lateralAccelMps2Pub =
+      estimatorTable.getDoubleTopic("LateralAccelMps2").publish();
+  private final DoublePublisher disturbedPub = estimatorTable.getDoubleTopic("Disturbed").publish();
+
   public DriveMechanism() {
     super("Drivetrain");
     // The drivetrain's perspective update used to live in periodic(); run it every loop.
@@ -51,8 +69,56 @@ public class DriveMechanism extends Mechanism {
   /** Pushes the latest Phoenix odometry snapshot into the team pose estimator. */
   private void updateRobotState() {
     var state = drivetrain.getState();
-    robotState.addOdometryObservation(
-        state.Pose, state.Velocity.toFieldRelative(state.Pose.getRotation()), state.Timestamp);
+    ChassisVelocities fieldVelocity = state.Velocity.toFieldRelative(state.Pose.getRotation());
+
+    evaluateOdometryDisturbance(fieldVelocity, state.Timestamp);
+    boolean disturbedNow = Utils.getCurrentTimeSeconds() <= disturbanceUntilTimestamp;
+    robotState.setOdometryVarianceScale(
+        disturbedNow ? Constants.Estimator.kOdometryVarianceScaleWhenDisturbed : 1.0);
+    disturbedPub.set(disturbedNow ? 1.0 : 0.0);
+
+    robotState.addOdometryObservation(state.Pose, fieldVelocity, state.Timestamp);
+  }
+
+  private void evaluateOdometryDisturbance(
+      ChassisVelocities currentFieldVelocity, double timestamp) {
+    if (!Double.isFinite(lastVelocityTimestamp)) {
+      lastFieldVelocity = currentFieldVelocity;
+      lastVelocityTimestamp = timestamp;
+      accelMps2Pub.set(0.0);
+      lateralAccelMps2Pub.set(0.0);
+      return;
+    }
+
+    double dt = Math.max(1e-3, timestamp - lastVelocityTimestamp);
+    double ax = (currentFieldVelocity.vx - lastFieldVelocity.vx) / dt;
+    double ay = (currentFieldVelocity.vy - lastFieldVelocity.vy) / dt;
+    double accelMag = Math.hypot(ax, ay);
+    double speed = Math.hypot(currentFieldVelocity.vx, currentFieldVelocity.vy);
+    double lateralAccelMag =
+        speed > 1e-3
+            ? Math.abs((-currentFieldVelocity.vy * ax + currentFieldVelocity.vx * ay) / speed)
+            : 0.0;
+
+    accelMps2Pub.set(accelMag);
+    lateralAccelMps2Pub.set(lateralAccelMag);
+
+    boolean collisionLike = accelMag >= Constants.Estimator.kCollisionAccelThresholdMps2;
+    boolean skidLike =
+        speed >= Constants.Estimator.kSkidSpeedThresholdMps
+            && Math.abs(currentFieldVelocity.omega)
+                >= Constants.Estimator.kSkidYawRateThresholdRadPerSec
+            && lateralAccelMag >= Constants.Estimator.kSkidLateralAccelThresholdMps2;
+
+    if (collisionLike || skidLike) {
+      disturbanceUntilTimestamp =
+          Math.max(
+              disturbanceUntilTimestamp,
+              Utils.getCurrentTimeSeconds() + Constants.Estimator.kDisturbanceHoldSeconds);
+    }
+
+    lastFieldVelocity = currentFieldVelocity;
+    lastVelocityTimestamp = timestamp;
   }
 
   /** Returns a command that continuously applies the supplied control request to the drivetrain. */
