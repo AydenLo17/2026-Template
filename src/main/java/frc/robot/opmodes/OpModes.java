@@ -15,6 +15,7 @@ import frc.robot.commands.DriveToTag;
 import frc.robot.commands.GamepieceAssistDrive;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.DriveMechanism;
+import frc.robot.utils.PreMatchCheck;
 import org.wpilib.command3.Command;
 import org.wpilib.command3.Scheduler;
 import org.wpilib.command3.button.CommandNiDsXboxController;
@@ -161,7 +162,61 @@ public final class OpModes {
 
   // ---- Utility ---------------------------------------------------------------------------------
 
-  /** Stows the superstructure (arm vertical, flywheel stopped) - a safe pose for the cart. */
+  /**
+   * Pre-match readiness check. Select this before a match to verify battery voltage, CAN bus
+   * health, vision connectivity, and auto selection. Results display on any dashboard via {@code
+   * NT:/MatchReady/*} and are logged to the {@code .wpilog}. Works while the robot is disabled. See
+   * {@link PreMatchCheck} for the full list of checks.
+   */
+  @Utility(name = "Pre-Match Check")
+  public static class PreMatchCheckMode extends PeriodicOpMode {
+    private final PreMatchCheck check;
+
+    public PreMatchCheckMode(Robot robot) {
+      this.check = new PreMatchCheck(robot);
+    }
+
+    @Override
+    public void periodic() {
+      // Runs continuously while the mode is selected, even while disabled, so the dashboard stays
+      // live and results update as hardware comes online during pit setup.
+      check.runChecks();
+    }
+  }
+
+  /**
+   * Zero the arm encoder at its current position. Use when the robot is at a known mechanical zero
+   * (e.g., arm resting on a hard stop). The CANcoder position is set to 0.0; update the position
+   * setpoint constants in {@link frc.robot.subsystems.arm.Arm} to match your zero.
+   */
+  @Utility(name = "Zero Arm")
+  public static class ZeroArm extends PeriodicOpMode {
+    private final Robot robot;
+    private boolean zeroed = false;
+
+    public ZeroArm(Robot robot) {
+      this.robot = robot;
+    }
+
+    @Override
+    public void start() {
+      robot.arm.zeroEncoder();
+      zeroed = true;
+      System.out.println("[ZERO] Arm encoder zeroed at current position");
+    }
+
+    @Override
+    public void periodic() {
+      if (zeroed) {
+        System.out.println(
+            "[ZERO] Arm zeroed — current angle: "
+                + String.format("%.2f", robot.arm.getPosition().baseUnitMagnitude() * 360)
+                + "°");
+      }
+    }
+  }
+
+  /** Stow for travel: arm vertical, flywheel stopped. */
   @Utility(name = "Stow")
   public static class Stow extends CommandOpMode {
     public Stow(Robot robot) {

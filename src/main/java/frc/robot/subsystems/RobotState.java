@@ -21,36 +21,84 @@ import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.networktables.StructPublisher;
 
 /**
- * The robot's single source of truth for "where are we on the field", fusing wheel/gyro odometry
- * with AprilTag vision. This is our version of the {@code RobotState} class the top FRC teams (6328
- * Mechanical Advantage, 254, 2910) build their whole codebase around.
+ * Single source of truth for "where are we on the field" — the robot's pose estimate fusing
+ * wheel/gyro odometry with AprilTag vision. This is the team-owned equivalent of the {@code
+ * RobotState} class top FRC teams (6328, 254, 2910) build their entire codebase around.
  *
- * <h2>Why a separate estimator at all?</h2>
+ * <h2>Why a separate estimator?</h2>
  *
- * <p>The Phoenix swerve object already fuses vision internally, but it's a black box: you can't see
- * the odometry-only pose, you can't log the correction it applied, and you can't tune the fusion.
- * This class re-implements the fusion in the open so every knob and every intermediate value is
- * visible in the log (under {@code RobotState/*}) and controllable from {@link Constants.Estimator}
- * and {@link Constants.Vision}. That is exactly what lets you tune vision on a real field.
+ * <p>Phoenix's swerve odometry already fuses vision internally, but it's a black box — you can't
+ * see the odometry-only pose, you can't log the correction applied, and you can't tune the gains.
+ * This class re-implements the fusion in the open so <b>every knob and every value is visible in
+ * the log</b> (under {@code NT:/RobotState/*}) and controllable via {@link
+ * frc.robot.Constants.Estimator} and {@link frc.robot.Constants.Vision}. That transparency is what
+ * lets you tune vision fusion on a real field with real AprilTag layouts.
  *
- * <h2>The core trick: rewind, fuse, forward</h2>
+ * <h2>The core algorithm: rewind, fuse, forward</h2>
  *
- * <p>A camera frame that lands at time {@code t} describes where the robot was ~50-100 ms ago, not
- * now. Naively snapping the current pose to a stale measurement fights the odometry. Instead we:
+ * <p>A camera frame describing "the robot is at pose X" lands ~50–100 ms <b>after</b> the robot was
+ * actually at that pose. If we naively set the current pose to the vision measurement, it fights
+ * the odometry and causes jumps. Instead:
  *
  * <ol>
- *   <li>keep a short history of odometry poses in a {@link TimeInterpolatableBuffer} (rewind),
- *   <li>look up where odometry thought we were at the frame's timestamp and blend that with the
- *       vision pose using a Kalman gain (fuse),
- *   <li>re-apply all the odometry motion since that timestamp to bring the corrected pose back to
- *       the present (forward).
+ *   <li><b>Rewind:</b> Keep a short history of odometry poses in a {@link
+ *       TimeInterpolatableBuffer}. When a vision frame arrives, look up the pose odometry computed
+ *       at the frame's original timestamp.
+ *   <li><b>Fuse:</b> Blend the vision pose with the historical odometry pose using a Kalman gain
+ *       (weighted by their reported uncertainties).
+ *   <li><b>Forward:</b> Re-apply all the odometry motion since that timestamp to bring the
+ *       corrected pose back to the present.
  * </ol>
  *
- * <h2>Threading</h2>
+ * <p>Result: the estimate tracks odometry short-term (smooth, accurate) but is drift-corrected by
+ * vision long-term (stays on the field).
  *
- * <p>Every method here runs on the main robot loop ({@link DriveMechanism} feeds odometry from a
- * scheduler periodic; {@link frc.robot.subsystems.vision.Limelight} feeds vision from another). No
- * locking is needed as long as nothing calls in from the 250 Hz Phoenix odometry thread.
+ * <h2>Trust and Gating</h2>
+ *
+ * <p><b>Odometry trust:</b> {@link frc.robot.Constants.Estimator} defines how much drift we expect
+ * from wheels/gyro. Lower values = more drift assumed = vision pulls harder.
+ *
+ * <p><b>Vision trust:</b> Each vision measurement reports a 3-element covariance vector (X/Y/θ
+ * standard deviations). {@link frc.robot.Constants.Vision} defines hard gates (reject obviously bad
+ * frames) and soft inflation factors (reduce trust if tags are far, noisy, ambiguous, etc.). Only
+ * measurements that pass the gates are fused.
+ *
+ * <h2>Disturbance Handling</h2>
+ *
+ * <p>When the robot hits something or skids, odometry briefly becomes unreliable. This class
+ * detects collisions (sudden accel spike) and skids (velocity mismatch), and temporarily scales up
+ * odometry variance so vision corrections pull harder. See {@link frc.robot.Constants.Estimator}
+ * disturbance thresholds.
+ *
+ * <h2>Threading Model</h2>
+ *
+ * <p>All methods run on the main robot loop. {@link DriveMechanism} feeds odometry updates via
+ * periodic calls, and {@link frc.robot.subsystems.vision.Limelight} feeds vision via asynchronous
+ * NT callbacks. No locking is needed as long as nothing calls in from the 250 Hz Phoenix low-level
+ * odometry thread.
+ *
+ * <h2>Logging</h2>
+ *
+ * <p>Publishes to <b>{@code NT:/RobotState/*}</b>:
+ *
+ * <ul>
+ *   <li>{@code EstimatedPose} — the fused pose (what the rest of the robot reads)
+ *   <li>{@code OdometryPose} — odometry-only pose (no vision). Compare against EstimatedPose to see
+ *       how much vision is pulling.
+ *   <li>{@code VisionMinusOdometryMeters} — magnitude of the most recent vision correction
+ *   <li>{@code AcceptedVisionCount} / {@code RejectedVisionCount} — running counters
+ *   <li>{@code SecondsSinceVision} — age of last accepted frame (-1 = never received one)
+ *   <li>{@code OdometryVarianceScale} — disturbance flag (should be 1.0 most of the time)
+ * </ul>
+ *
+ * <p>Use AdvantageScope to plot these channels and tune vision gates and fusion gains. See the
+ * {@code log-reading} and {@code TUNING} skills.
+ *
+ * @see DriveMechanism — owns this and feeds odometry updates
+ * @see frc.robot.subsystems.vision.Limelight — feeds vision measurements via NT
+ * @see frc.robot.Constants.Estimator — odometry variance tuning
+ * @see frc.robot.Constants.Vision — vision trust and gating tuning
+ * @see frc.robot.TUNING — step-by-step pose estimation tuning procedures
  */
 public class RobotState {
   /** Odometry pose history, keyed by timestamp, for latency-compensated vision fusion. */

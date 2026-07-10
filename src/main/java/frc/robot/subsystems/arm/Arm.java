@@ -20,12 +20,56 @@ import org.wpilib.command3.Mechanism;
 import org.wpilib.units.measure.Angle;
 
 /**
- * Arm - an example subsystem driven by a Phoenix 6 TalonFX + CANcoder.
+ * Arm - example rotating mechanism driven by a Phoenix 6 TalonFX + CANcoder.
  *
- * <p>Pattern to teach: the subsystem owns the hardware, keeps its setters {@code private}, and
- * exposes <b>commands</b> (each returns a {@link Command}). Anything that wants to move the arm
- * does it through a command, which is how the scheduler prevents two things fighting over the
- * motor.
+ * <h2>Pattern</h2>
+ *
+ * <p>The subsystem owns the motor and encoder, keeps setters private, and exposes only
+ * <b>commands</b> (each returns a {@link Command}). Anything that wants to move the arm does it
+ * through a command, which prevents two things fighting over the motor via the scheduler.
+ *
+ * <h2>Hardware</h2>
+ *
+ * <ul>
+ *   <li><b>Motor:</b> TalonFX on CAN 31 (update in constructor if different)
+ *   <li><b>Encoder:</b> CANcoder on CAN 32 (update in constructor if different)
+ *   <li><b>Gear ratio:</b> 1:1 (update {@link TalonFXConfiguration#Feedback} if different)
+ *   <li><b>Control mode:</b> {@link MotionMagicVoltage} position control with gravity feedforward
+ *   <li><b>Neutral mode:</b> Coast (arm falls under gravity when not powered)
+ * </ul>
+ *
+ * <h2>Tuning</h2>
+ *
+ * <p>Before driving the arm on a real robot, you <b>must</b> characterize and tune:
+ *
+ * <ul>
+ *   <li><b>Gravity feedforward ({@code kG}):</b> Measures how much voltage the arm needs to hold
+ *       itself at 90° (horizontal). Safe starting point: {@code 0.2} (typical for arm-mass robots).
+ *       Too low: arm droops under its own weight. Too high: arm kicks upward at high power.
+ *   <li><b>Static friction ({@code kS}):</b> Voltage to overcome friction. Safe start: {@code 0.2}.
+ *   <li><b>Proportional gain ({@code kP}):</b> Correction strength; in (V) per degree of error.
+ *       Safe start: {@code 80} (strong correction). Lower if jerky, raise if sluggish.
+ *   <li><b>Derivative gain ({@code kD}):</b> Damping to prevent overshoot. Safe start: {@code 8.0}.
+ *   <li><b>Motion Magic limits:</b> {@code MOTION_MAGIC_CRUISE_VELOCITY} (how fast it moves, rot/s)
+ *       and {@code MOTION_MAGIC_ACCELERATION} (how quickly it accelerates, rot/s²). Safe start: 2.0
+ *       rot/s and 4.0 rot/s².
+ * </ul>
+ *
+ * <p>Once tuned, update the static final constants at the top of this file. See <a
+ * href="../../../../../../DEPLOYMENT_CHECKLIST.md">DEPLOYMENT_CHECKLIST.md</a> for the step-by-step
+ * tuning procedure.
+ *
+ * <h2>Commands</h2>
+ *
+ * <ul>
+ *   <li>{@link #vertical()} — move to stowed position (90°)
+ *   <li>{@link #horizontal()} — move to ground intake position (180°)
+ *   <li>{@link #scoring()} — move to scoring position (~30°)
+ *   <li>{@link #scoringAndWait()} — move to scoring and finish once arrived
+ * </ul>
+ *
+ * @see frc.robot.Robot#arm — owned by the robot
+ * @see frc.robot.commands.DriveToPose — uses arm position for part of autonomous routine
  */
 public class Arm extends Mechanism {
   // Position setpoints (rotations, 1.0 = full turn).
@@ -110,6 +154,23 @@ public class Arm extends Mechanism {
   /** True when the arm has reached its target angle. */
   public boolean isAtTarget() {
     return getPosition().isNear(getTargetPosition(), tolerance);
+  }
+
+  /**
+   * True when the arm motor controller is alive on the CAN bus. Returns false if the device has
+   * never responded since boot (version == 0), which indicates a wiring or ID problem.
+   */
+  public boolean isMotorAlive() {
+    return motor.getVersion().getValue() > 0;
+  }
+
+  /**
+   * Zero the arm encoder at the current physical position. Call this when the arm is resting on a
+   * known mechanical zero point (e.g., a hard stop). After zeroing, the position setpoints in this
+   * file should be measured and updated to match the new zero. See the "Zero Arm" Utility OpMode.
+   */
+  public void zeroEncoder() {
+    encoder.setPosition(0.0);
   }
 
   /** Current measured arm angle. */

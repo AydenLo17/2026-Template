@@ -18,8 +18,52 @@ import org.wpilib.command3.Mechanism;
 import org.wpilib.units.measure.AngularVelocity;
 
 /**
- * Flywheel - second example subsystem. Same pattern as {@link frc.robot.subsystems.arm.Arm}: owns
- * its motor, hides setters, exposes commands.
+ * Flywheel - example velocity mechanism driven by a Phoenix 6 TalonFX.
+ *
+ * <h2>Pattern</h2>
+ *
+ * <p>Like {@link frc.robot.subsystems.arm.Arm}, the subsystem owns the motor, keeps setters
+ * private, and exposes only <b>commands</b>. The scheduler prevents multiple commands fighting for
+ * the motor.
+ *
+ * <h2>Hardware</h2>
+ *
+ * <ul>
+ *   <li><b>Motor:</b> TalonFX on CAN 21 (update in constructor if different)
+ *   <li><b>Control mode:</b> {@link MotionMagicVelocityVoltage} speed control
+ *   <li><b>Neutral mode:</b> Coast (flywheel spins freely when unpowered)
+ * </ul>
+ *
+ * <h2>Tuning</h2>
+ *
+ * <p>Flywheel gains are simpler than arm (no gravity), but still need tuning:
+ *
+ * <ul>
+ *   <li><b>Velocity feedforward ({@code kV}):</b> In (volts per rps). Measures the "slope" of the
+ *       motor speed curve. Safe starting point: {@code 0.125} (typical for FRC motors). Lower if
+ *       overshooting target speed, higher if undershooting.
+ *   <li><b>Static friction ({@code kS}):</b> Voltage to overcome friction and get the motor
+ *       spinning. Safe start: {@code 0.0} (flywheels typically have low static friction).
+ *   <li><b>Proportional gain ({@code kP}):</b> Correction strength. Safe start: {@code 0.01} (small
+ *       because kV does most of the work). Raise if slow to settle, lower if jittery.
+ *   <li><b>Motion Magic limits:</b> {@code MOTION_MAGIC_CRUISE_VELOCITY} (max flywheel speed,
+ *       rot/s) and {@code MOTION_MAGIC_ACCELERATION} (acceleration limit, rot/s²). These are
+ *       typically large; set based on what speed your game requires.
+ * </ul>
+ *
+ * <p>Once tuned, update the static final constants at the top of this file. See <a
+ * href="../../../../../../DEPLOYMENT_CHECKLIST.md">DEPLOYMENT_CHECKLIST.md</a> for the step-by-step
+ * tuning procedure.
+ *
+ * <h2>Commands</h2>
+ *
+ * <ul>
+ *   <li>{@link #spinUp()} — command flywheel to shooting speed, hold until interrupted
+ *   <li>{@link #stop()} — stop and coast
+ * </ul>
+ *
+ * @see frc.robot.Robot#flywheel — owned by the robot
+ * @see frc.robot.Robot#autoScore() — uses flywheel as part of superstructure
  */
 public class Flywheel extends Mechanism {
   // Shooting speed (rotations per second).
@@ -71,6 +115,14 @@ public class Flywheel extends Mechanism {
   /** True when the flywheel is within tolerance of its target speed. */
   public boolean isAtTarget() {
     return motor.getVelocity().getValue().isNear(velocityOut.getVelocityMeasure(), tolerance);
+  }
+
+  /**
+   * True when the flywheel motor controller is alive on the CAN bus. Returns false if the device
+   * has never responded since boot (version == 0), which indicates a wiring or ID problem.
+   */
+  public boolean isMotorAlive() {
+    return motor.getVersion().getValue() > 0;
   }
 
   private void setVelocity(double rps) {
