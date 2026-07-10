@@ -301,4 +301,69 @@ public final class Constants {
      */
     public static final double kOdometryStdDevRadians = 0.002;
   }
+
+  /**
+   * Limelight-based gamepiece detection and intake-drive assist tuning.
+   *
+   * <p>This follows the same high-level idea many top teams use: estimate gamepiece position from
+   * camera angles, keep a short "last seen" memory, and assist only while intaking so normal teleop
+   * feel stays driver-first.
+   */
+  public static final class Gamepiece {
+    private Gamepiece() {}
+
+    /** Limelight name used for gamepiece detection (must match camera NT name). */
+    public static final String kDetectionCamera = "limelight-br";
+
+    /** Neural detector class id to track; set to -1 to accept any detected class. */
+    public static final int kDetectionClassId = -1;
+
+    /** Ignore tiny detections below this area (% of image). */
+    public static final double kMinDetectionArea = 0.10;
+
+    /**
+     * Camera mount pitch (degrees). Positive means the camera points downward toward the carpet.
+     * TODO: replace with your measured mount pitch.
+     */
+    public static final double kCameraPitchDegrees = 24.0;
+
+    /** Camera mount yaw (degrees), positive to robot-left. TODO: replace with measured value. */
+    public static final double kCameraYawDegrees = 0.0;
+
+    /** Camera height above carpet (meters). TODO: replace with measured value. */
+    public static final double kCameraHeightMeters = 0.56;
+
+    /** Forward offset from robot center to camera (meters). TODO: replace with measured value. */
+    public static final double kCameraForwardMeters = 0.30;
+
+    /** Left offset from robot center to camera (meters). TODO: replace with measured value. */
+    public static final double kCameraLeftMeters = 0.00;
+
+    /** Expected gamepiece center height above carpet (meters). */
+    public static final double kGamepieceHeightMeters = 0.02;
+
+    /** Drop a remembered gamepiece if unseen longer than this (seconds). */
+    public static final double kTargetMemorySeconds = 0.35;
+
+    /** Ignore assist when already this close to the piece (meters). */
+    public static final double kStopDistanceMeters = 0.22;
+
+    /** Position gain for assist velocity (1/s). */
+    public static final double kPursuitGain = 1.8;
+
+    /** Velocity damping gain to avoid overshoot/skid while converging. */
+    public static final double kVelocityDamping = 0.65;
+
+    /** Max translational assist speed added by the algorithm (m/s). */
+    public static final double kMaxAssistSpeedMetersPerSecond = 1.8;
+
+    /** How strongly assist blends into manual translation while intaking (0-1). */
+    public static final double kAssistBlend = 0.70;
+
+    /** Translation slew-rate limit for smooth, non-skidding stick-to-assist transitions (m/s^2). */
+    public static final double kTranslationSlewRate = 6.0;
+
+    /** Rotation slew-rate limit for smooth heading changes (rad/s^2). */
+    public static final double kRotationSlewRate = 8.0;
+  }
 }

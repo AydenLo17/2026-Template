@@ -19,3 +19,11 @@
 - [x] Publish crop telemetry (`CropXMin/XMax/YMin/YMax`, `CropScale`, `CropMode`) to `NT:/Vision/<camera>/*`.
 - [x] Add optional enable flag so feature can be toggled during testing.
 - [ ] Validate latency/FPS impact and pose quality on real robot.
+
+## Dynamic Limelight Tag Pipeline Switching (future upgrade)
+
+- [ ] Add near/far tag pipelines tuned for close control vs high-speed/far detection.
+- [ ] Add hysteresis and min-hold timing to prevent pipeline thrash.
+- [ ] Decide switching inputs (speed, recent tag distance, and optional match phase).
+- [ ] Publish pipeline telemetry (`PipelineIndex`, `PipelineMode`) to `NT:/Vision/<camera>/*`.
+- [ ] Validate whether switching improves detection consistency over crop-only behavior.

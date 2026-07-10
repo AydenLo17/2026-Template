@@ -8,12 +8,11 @@ import static org.wpilib.units.Units.MetersPerSecond;
 import static org.wpilib.units.Units.RadiansPerSecond;
 import static org.wpilib.units.Units.RotationsPerSecond;
 
-import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
-import com.ctre.phoenix6.swerve.SwerveRequest;
 import frc.robot.Robot;
 import frc.robot.commands.Autos;
 import frc.robot.commands.DriveToPose;
 import frc.robot.commands.DriveToTag;
+import frc.robot.commands.GamepieceAssistDrive;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandFactory;
 import frc.robot.subsystems.DriveMechanism;
@@ -87,26 +86,23 @@ public final class OpModes {
     private final double maxAngularRate =
         RotationsPerSecond.of(0.75).in(RadiansPerSecond); // .75rps
 
-    private final SwerveRequest.FieldCentric drive =
-        new SwerveRequest.FieldCentric()
-            .withDeadband(maxSpeed * 0.1)
-            .withRotationalDeadband(maxAngularRate * 0.1) // 10% stick deadband
-            .withDriveRequestType(DriveRequestType.OpenLoopVoltage); // open-loop drive motors
-
     private final CommandNiDsXboxController driver = new CommandNiDsXboxController(0);
 
     public DriverTeleop(Robot robot) {
       final DriveMechanism drivetrain = robot.drivetrain;
       final CommandFactory superstructure = robot.superstructure;
 
-      // X is forward and Y is left, per WPILib convention.
+      // X is forward and Y is left, per WPILib convention. While intaking, blend a smooth
+      // gamepiece assist vector from camera detections into the driver's translation request.
       drivetrain.setDefaultCommand(
-          drivetrain.applyRequest(
-              () ->
-                  drive
-                      .withVelocityX(-driver.getLeftY() * maxSpeed) // forward with negative Y
-                      .withVelocityY(-driver.getLeftX() * maxSpeed) // left with negative X
-                      .withRotationalRate(-driver.getRightX() * maxAngularRate))); // CCW with -X
+          new GamepieceAssistDrive(
+              drivetrain,
+              driver::getLeftY,
+              driver::getLeftX,
+              driver::getRightX,
+              () -> driver.leftTrigger().getAsBoolean(),
+              maxSpeed,
+              maxAngularRate));
 
       // Reset the field-centric heading on left bumper press.
       driver.leftBumper().onTrue(drivetrain.seedFieldCentric());
