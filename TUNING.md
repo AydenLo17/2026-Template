@@ -50,7 +50,7 @@ what you cannot see, so start every tuning session by pulling up the relevant ch
 | `AcceptedVisionCount` / `RejectedVisionCount` | running totals — is vision actually being used? |
 | `SecondsSinceVision` | time since the last accepted frame (−1 = never) |
 
-### Per-camera vision — `NT:/Vision/<camera>/*` (e.g. `limelight-br`)
+### Per-camera vision — `NT:/Vision/<camera>/*` (e.g. `limelight-front`)
 | Key | What it tells you |
 |-----|-------------------|
 | `Status` | **the most useful channel** — `accept:megatag1/2` or `reject:<reason>` |

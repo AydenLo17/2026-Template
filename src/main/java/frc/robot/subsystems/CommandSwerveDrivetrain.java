@@ -25,8 +25,11 @@ import org.wpilib.system.RobotController;
  */
 public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain {
   private static final double SIM_LOOP_PERIOD = 0.004; // 4 ms
+  private static final double MIN_TRACTION_FILTER_DT = 1e-3;
+  private static final double MAX_TRACTION_FILTER_DT = 0.1;
   private Notifier simNotifier = null;
   private double lastSimTime;
+  private double lastTractionFilterTime = Double.NaN;
 
   /* Blue alliance sees forward as 0 degrees (toward red alliance wall) */
   private static final Rotation2d kBlueAlliancePerspectiveRotation = Rotation2d.kZero;
@@ -114,8 +117,15 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain {
    *     unchanged
    */
   public ChassisVelocities applyTractionFilter(ChassisVelocities targetSpeeds) {
-    final double dt = Constants.Traction.kLoopPeriod;
     final double aMax = Constants.Traction.kMaxTranslationAccel; // = mu * g
+
+    double currentTime = Utils.getCurrentTimeSeconds();
+    double dt = Constants.Traction.kLoopPeriod;
+    if (Double.isFinite(lastTractionFilterTime)) {
+      dt = currentTime - lastTractionFilterTime;
+    }
+    lastTractionFilterTime = currentTime;
+    dt = Math.max(MIN_TRACTION_FILTER_DT, Math.min(MAX_TRACTION_FILTER_DT, dt));
 
     // Measured velocity is robot-relative in the state; rotate it into the field frame so the
     // requested-minus-actual subtraction below happens in one consistent (field) frame.

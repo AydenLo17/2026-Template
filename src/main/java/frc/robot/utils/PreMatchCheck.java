@@ -140,18 +140,18 @@ public final class PreMatchCheck {
     // If the Limelight is alive it publishes "hb" (heartbeat) to its NT table; any other key
     // also works — if the table is empty the camera is off or misconfigured.
     var ntInst = NetworkTableInstance.getDefault();
-    boolean llBr = ntInst.getTable("limelight-br").getKeys().size() > 0;
-    boolean llBl = ntInst.getTable("limelight-bl").getKeys().size() > 0;
+    boolean llBr = ntInst.getTable("limelight-front").getKeys().size() > 0;
+    boolean llBl = ntInst.getTable("limelight-rear").getKeys().size() > 0;
     boolean atLeastOneVision = llBr || llBl;
     visionOk.set(atLeastOneVision);
     if (!atLeastOneVision) {
       logFail(
-          "No Limelight cameras responding on NetworkTables (check limelight-br, limelight-bl)");
+          "No Limelight cameras responding on NetworkTables (check limelight-front, limelight-rear)");
       anyFail = true;
     } else if (!llBr || !llBl) {
       logWarn(
           "Only one Limelight responding ("
-              + (llBr ? "limelight-br" : "limelight-bl")
+              + (llBr ? "limelight-front" : "limelight-rear")
               + " missing)");
       anyWarn = true;
     }

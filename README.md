@@ -27,3 +27,11 @@ Hemlock 5712's robot-code template for the WPILib **2027 alpha** stack:
 
 This template is the reference code for the Gray Matter Workshop:
 **[frc5712.com](https://frc5712.com)** — mechanisms, commands, triggers, PID/Motion Magic, swerve, logging, vision, and state machines, all taught against this stack.
+
+## Vision simulation
+
+The robot now uses PhotonLib in simulation to generate both AprilTag pose estimates and gamepiece detections. The real robot still uses the Limelight code path.
+
+- Sim camera poses live in [src/main/java/frc/robot/subsystems/vision/VisionSimConfig.java](src/main/java/frc/robot/subsystems/vision/VisionSimConfig.java).
+- The Photon bridge is in [src/main/java/frc/robot/subsystems/vision/PhotonVisionSim.java](src/main/java/frc/robot/subsystems/vision/PhotonVisionSim.java).
+- Add a new sim camera by adding one entry to the `VisionSimConfig.cameras()` list.

@@ -9,6 +9,7 @@ import frc.robot.subsystems.DriveMechanism;
 import frc.robot.subsystems.arm.Arm;
 import frc.robot.subsystems.flywheel.Flywheel;
 import frc.robot.subsystems.vision.Limelight;
+import frc.robot.subsystems.vision.PhotonVisionSim;
 import frc.robot.utils.SimStartup;
 import org.wpilib.command3.Command;
 import org.wpilib.command3.Scheduler;
@@ -35,6 +36,8 @@ public class Robot extends OpModeRobot {
   public final Arm arm = new Arm();
   public final Flywheel flywheel = new Flywheel();
 
+  private final PhotonVisionSim photonVisionSim;
+
   public Robot() {
     // Start on-robot logging. There is no AdvantageKit in this template; the "logging-only" story
     // is DataLogManager - it records every NetworkTables value change (including everything
@@ -50,7 +53,9 @@ public class Robot extends OpModeRobot {
     RobotModeTriggers.disabled().whileTrue(drivetrain.applyRequest(() -> idle));
 
     // Vision: wire up every Limelight in one call (names must match each camera's NT name).
-    Limelight.registerAll(drivetrain, "limelight-br", "limelight-bl");
+    Limelight.registerAll(drivetrain, "limelight-front", "limelight-rear");
+
+    photonVisionSim = new PhotonVisionSim(drivetrain);
   }
 
   @Override
@@ -58,6 +63,11 @@ public class Robot extends OpModeRobot {
     // Headless auto-enable for agent / CI runs. No-op unless -Dfrc.sim.startMode is set (the
     // simulateJavaAgent Gradle task sets it). See SimStartup and the run-sim skill.
     SimStartup.arm();
+  }
+
+  @Override
+  public void simulationPeriodic() {
+    photonVisionSim.update();
   }
 
   @Override

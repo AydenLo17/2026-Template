@@ -129,7 +129,7 @@ Accurate vision depends entirely on knowing where cameras are mounted relative t
   public static final double kCameraLeftMeters = 0.00;       // Measured value
   ```
 - [ ] **Verify Limelight NetworkTables names** match code:
-  - Default: `"limelight"`, `"limelight-br"`, `"limelight-bl"` (see [Constants.Gamepiece](src/main/java/frc/robot/Constants.java#L349))
+  - Default: `"limelight"`, `"limelight-front"`, `"limelight-rear"` (see [Constants.Gamepiece](src/main/java/frc/robot/Constants.java#L349))
   - Update [OpModes.java](src/main/java/frc/robot/opmodes/OpModes.java#L79) if names differ
 - [ ] **Position Limelight crop window** (AprilTag detection):
   - Test at various distances (near tag, far tag)

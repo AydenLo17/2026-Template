@@ -47,6 +47,17 @@ public class GamepieceAssistDrive extends ClassicCommand {
   private final SlewRateLimiter omegaLimiter =
       new SlewRateLimiter(Constants.Gamepiece.kRotationSlewRate);
 
+  // private final NetworkTable telemetryTable =
+  //     NetworkTableInstance.getDefault().getTable("GamepieceAssistDrive");
+  // private final DoublePublisher manualSpeedPub =
+  //     telemetryTable.getDoubleTopic("ManualSpeedMps").publish();
+  // private final DoublePublisher commandedSpeedPub =
+  //     telemetryTable.getDoubleTopic("CommandedSpeedMps").publish();
+  // private final DoublePublisher smoothedSpeedPub =
+  //     telemetryTable.getDoubleTopic("SmoothedSpeedMps").publish();
+  // private final DoublePublisher filteredSpeedPub =
+  //     telemetryTable.getDoubleTopic("FilteredSpeedMps").publish();
+
   private Translation2d lastSeenGamepieceField = null;
   private double lastSeenTimestamp = 0.0;
 
@@ -89,6 +100,7 @@ public class GamepieceAssistDrive extends ClassicCommand {
     double manualVx = -leftY.getAsDouble() * maxSpeed;
     double manualVy = -leftX.getAsDouble() * maxSpeed;
     double manualOmega = -rightX.getAsDouble() * maxAngularRate;
+    // manualSpeedPub.set(Math.hypot(manualVx, manualVy));
 
     updateGamepieceEstimate(now);
 
@@ -108,13 +120,18 @@ public class GamepieceAssistDrive extends ClassicCommand {
       commandVx *= scale;
       commandVy *= scale;
     }
+    // commandedSpeedPub.set(Math.hypot(commandVx, commandVy));
 
     double smoothVx = vxLimiter.calculate(commandVx);
     double smoothVy = vyLimiter.calculate(commandVy);
     double smoothOmega = omegaLimiter.calculate(manualOmega);
+    // smoothedSpeedPub.set(Math.hypot(smoothVx, smoothVy));
 
-    ChassisVelocities limited =
-        drivetrain.applyTractionFilter(new ChassisVelocities(smoothVx, smoothVy, smoothOmega));
+    // Manual teleop already limits acceleration through the slew-rate limiters above. Running the
+    // measured-velocity traction filter here makes stick control feel sluggish because any normal
+    // drivetrain tracking lag looks like an "unachievable" acceleration request every loop.
+    ChassisVelocities limited = new ChassisVelocities(smoothVx, smoothVy, smoothOmega);
+    // filteredSpeedPub.set(Math.hypot(limited.vx, limited.vy));
 
     drivetrain.setControl(
         driveRequest

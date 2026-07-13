@@ -334,7 +334,7 @@ public final class Constants {
     private Gamepiece() {}
 
     /** Limelight name used for gamepiece detection (must match camera NT name). */
-    public static final String kDetectionCamera = "limelight-br";
+    public static final String kDetectionCamera = "limelight-front";
 
     /** Neural detector class id to track; set to -1 to accept any detected class. */
     public static final int kDetectionClassId = -1;
